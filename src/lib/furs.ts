@@ -7,4 +7,4 @@ export type { FursEnvironment, FursConfig, FursReferenceInvoice, FursInvoiceData
 export { FURS_URLS, FURS_ECHO_URLS } from './furs/types'
 export { generateZOI, loadCertificatePrivateKey, clearCertificateCache, extractCertificateFromPKCS12 } from './furs/crypto'
 export { verifyInvoiceWithFURS } from './furs/api'
-export { generateFursQRContent, generateFursVerificationUrl, validateFursConfig, checkFursConnectivity } from './furs/helpers'
+export { generateFursQRContent, validateFursConfig, checkFursConnectivity } from './furs/helpers'

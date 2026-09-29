@@ -62,13 +62,5 @@ export function generateFursQRContent(data: FursQRData): string {
   return parts.join('|')
 }
 
-/**
- * Generiraj URL za FURS preverjanje računa na spletu
- */
-export function generateFursVerificationUrl(data: FursQRData): string {
-  const qrContent = generateFursQRContent(data)
-  // FURS preverjalnik: https://blagajne.fu.gov.si/validation/qr/{data}
-  // V testnem načinu: https://blagajne-test.fu.gov.si/validation/qr/{data}
-  const encoded = encodeURIComponent(qrContent)
-  return `https://blagajne.fu.gov.si/validation/qr/${encoded}`
-}
+// R167 (#143): generateFursVerificationUrl izbrisan (R166-F6) — 0 klicalcev,
+// hardkodiran produkcijski URL; ni bil nikoli v uporabi.

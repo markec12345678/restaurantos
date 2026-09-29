@@ -3,7 +3,6 @@
 
 import React, { useCallback } from 'react'
 import { toast } from 'sonner'
-import { authFetch } from '@/components/pos/PinLogin'
 import type { WebhookItem, FormData } from '../constants'
 import { useWebhookMutations } from '../useWebhookMutations'
 
@@ -77,22 +76,9 @@ export function useWebhookHandlers(
     }))
   }, [setFormData])
 
-  const testWebhook = useCallback(async (item: WebhookItem) => {
-    try {
-      const res = await authFetch('/api/webhooks/test', {
-        method: 'POST',
-        body: JSON.stringify({ url: item.url, secret: item.secret }),
-      })
-      const result = await res.json()
-      if (result.success) {
-        toast.success(`Testni webhook uspešno dostavljen`, { description: `HTTP ${result.statusCode} — ${result.durationMs}ms` })
-      } else {
-        toast.error(`Testni webhook ni uspel`, { description: `HTTP ${result.statusCode || 'timeout'} — ${result.responseBody || 'Ni odziva'}` })
-      }
-    } catch {
-      toast.error('Napaka pri pošiljanju testnega webhooka')
-    }
-  }, [])
+  // R167 (#143): testWebhook gumb odstranjen — klical je /api/webhooks/test, ki ne obstaja (404
+  // od prvega dne); engine helper testWebhookDelivery prav tako izbrisan. Nov "testni webhook"
+  // endpoint = ločen feature, ne cleanup.
 
   const handleDialogOpenChange = useCallback((open: boolean) => {
     if (!open) setEditingItem(null)
@@ -115,7 +101,6 @@ export function useWebhookHandlers(
     openEdit,
     handleSubmit,
     toggleEvent,
-    testWebhook,
     handleDialogOpenChange,
     handleDeleteTarget,
     handleDeleteConfirm,

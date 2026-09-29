@@ -221,3 +221,18 @@ R166-F9a/c; DEFER: R166-F6/F7/F8.
 NOVI testi: r166-sim-mode (5), r166-batch-key (3), r166-timezone-dst (5). Anti-overclaim
 ostaja: FURS je koda-complete + sim-mode strukturno validiran, **NOT PHYSICALLY
 VALIDATED** z realnim FURS okoljem (mTLS/JWS/EOR — §7 točka 7).
+**Dodatek (R167)**: balast forenzika (R167-a READ-ONLY audit, 5 kandidatov; register
+issue #143). IZBRIS mrtev next-intl plast: messages/*.json (6 datotek / 3617 vrstic /
+3260 ključev, incl. mrtev ar.json), i18n-consolidation.ts (288 v) + njegov test,
+rtl.ts (112 v, 0 uvoznikov) — živi sistem je custom flat dict src/lib/i18n (README
+stack klaim popravljen). REFUTACIJA: trditev "mrtvi 'kds' mapping" iz prejšnjih rund
+je napačna — /kds app je ŽIVA; mrto je bilo samo kds.* i18n (25 vrstic, 0 referenc).
+MIKRO-CLEANUP: webhook engine/test.ts + UI test-gumb (klical /api/webhooks/test —
+ruta ne obstaja, 404 od prvega dne), generateFursVerificationUrl (R166-F6, 0
+klicalcev, hardkodiran prod URL). #33 STANJE: jedro zaključeno (R150: 25 polj Json);
+ostanki izrecno utemeljeni (modifiersJson dual-write drop odložen, AuditLog.details
+hash veriga, WebhookDelivery.payload HMAC, apiKeys backfill TODO, allergens CSV
+neodločena). DEFER: Sidebar IA tiering (75 modulov potrjeno, data-driven, 0 mrtvih —
+produktna odločitev), R166-F7 sw.js auth, 165/371 neuporabljenih ključev živega i18n,
+C4-a/b. NASLEDNJA RUNDA: R166-F8 FURS gesla šifriranje (write-path + cert-status +
+build-config bralca + backfill; issue #143 P2).

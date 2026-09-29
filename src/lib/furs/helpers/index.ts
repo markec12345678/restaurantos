@@ -4,5 +4,5 @@
 // ============================================
 
 export { toSlovenianDate, getLastSunday, toSlovenianISO } from './timezone'
-export { generateSimulatedEOR, generateFursQRContent, generateFursVerificationUrl } from './qr-eor'
+export { generateSimulatedEOR, generateFursQRContent } from './qr-eor'
 export { validateFursConfig, checkFursConnectivity } from './validation'

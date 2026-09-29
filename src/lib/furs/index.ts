@@ -14,7 +14,7 @@ export { generateZOI, loadCertificatePrivateKey, clearCertificateCache, extractC
 export { verifyInvoiceWithFURS } from './api'
 
 // Pomožne funkcije (QR, validacija, povezljivost)
-export { generateFursQRContent, generateFursVerificationUrl, validateFursConfig, checkFursConnectivity } from './helpers'
+export { generateFursQRContent, validateFursConfig, checkFursConnectivity } from './helpers'
 
 // ISSUE #37: Config resolver — per-location FURS configuration
 export { getFursConfig, isFursConfigured, getFursConfigSource } from './config-resolver'

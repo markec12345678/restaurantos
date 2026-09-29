@@ -41,7 +41,6 @@ export const WebhookManager = memo(function WebhookManager() {
     openEdit,
     handleSubmit,
     toggleEvent,
-    testWebhook,
     handleDialogOpenChange,
     handleDeleteTarget,
     handleDeleteConfirm,
@@ -96,7 +95,6 @@ export const WebhookManager = memo(function WebhookManager() {
         showInactive={showInactive}
         onSearchChange={setSearch}
         onShowInactiveChange={setShowInactive}
-        onTest={testWebhook}
         onEdit={openEdit}
         onDelete={handleDeleteTarget}
         onAdd={openCreate}

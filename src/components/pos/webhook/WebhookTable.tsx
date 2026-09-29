@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, Plus, Send, Pencil, Trash2, Activity, Webhook, XCircle } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Activity, Webhook, XCircle } from 'lucide-react'
 import type { WebhookTableProps } from './constants'
 import { getEventConfig, formatDateSI, parseEvents } from './constants'
 
@@ -22,7 +22,6 @@ export const WebhookTable = memo(function WebhookTable({
   showInactive,
   onSearchChange,
   onShowInactiveChange,
-  onTest,
   onEdit,
   onDelete,
   onAdd,
@@ -124,9 +123,6 @@ export const WebhookTable = memo(function WebhookTable({
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" aria-label="Pošlji" className="h-7 w-7" title="Testiraj" onClick={() => onTest(item)}>
-                            <Send className="h-3.5 w-3.5" />
-                          </Button>
                           <Button variant="ghost" size="icon" aria-label="Uredi" className="h-7 w-7" title="Uredi" onClick={() => onEdit(item)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>

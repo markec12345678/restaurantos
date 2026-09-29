@@ -16,5 +16,3 @@ export { triggerWebhook, isInternalUrl, deliverWebhook } from './delivery'
 // Ponovni poskusi
 export { processRetryQueue } from './retry'
 
-// Test
-export { testWebhookDelivery } from './test'

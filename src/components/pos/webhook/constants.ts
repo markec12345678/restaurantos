@@ -117,7 +117,6 @@ export interface WebhookTableProps {
   showInactive: boolean
   onSearchChange: (_value: string) => void
   onShowInactiveChange: (_value: boolean) => void
-  onTest: (_item: WebhookItem) => void
   onEdit: (_item: WebhookItem) => void
   onDelete: (_item: WebhookItem) => void
   onAdd: () => void

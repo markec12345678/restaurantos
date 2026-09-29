@@ -46,7 +46,6 @@ export function useWebhookManager() {
     openEdit: handlers.openEdit,
     handleSubmit: handlers.handleSubmit,
     toggleEvent: handlers.toggleEvent,
-    testWebhook: handlers.testWebhook,
     handleDialogOpenChange: handlers.handleDialogOpenChange,
     handleDeleteTarget: handlers.handleDeleteTarget,
     handleDeleteConfirm: handlers.handleDeleteConfirm,
