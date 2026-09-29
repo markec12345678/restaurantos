@@ -144,7 +144,9 @@ guard gte, obe seriji EXHAUSTED). Trap DB pina DEJANSKE produkcije WHERE-pogoje
 - **Offline (S12)**: orders/cancel **OFFLINE-SAFE** (IndexedDB + ledger exactly-once +
   r128 IT + živi E2E); payment **OFFLINE-BLOCKED** (client guard + 422 — po zasnovi);
   DailyClose **OFFLINE-BLOCKED** de facto (zdaj tudi dokumentirano tu); FURS receipt
-  sync **PARTIAL**.
+  sync **PARTIAL** (mehanika imenovana R166-F7: sw.js POST brez Authorization
+  headerja → 401/403 — sync ne teče; batch auth/platformAdminGate kontrakt je
+  fail-closed po zasnovi).
 - **Backup/restore (S13)**: **PHYSICALLY VALIDATED** v sandboxu (živi 6-fazni drill,
   RTO 22 s; r127 round-trip IT teče v CI) — omejitev: PGlite ≠ Neon.
 
@@ -167,6 +169,15 @@ blocked po zasnovi) · **1 removed/replaced**: QR (→ /api/public/menu).
 | R158-5 | P3 | DailyClose `totalRefunds` snapshot vedno 0 → export "Povračila" napačen | **FIXAN (R161)** — refund agregat v calculateReportStats (tx klient = R110 ZR-2, LJ meje, kanon izmene); 9 testov r161-totalrefunds.test.ts |
 | R158-6 | P3 | Ni namenskega "sočasni zadnji 2 enoti" testa | **FIXAN (R161)** — r161-last2-units.test.ts (V1a/V1b/V2, DB-pogojni guard pini) |
 | R163-S1 | P2 | scheduled-emails/process: registrirani Vercel cron (0 2) pošilja GET, GET pa je stats-only z requireAuth(admin)+platformAdminGate brez CRON_SECRET poti → cron dobi 401, email processing prek Vercel Crona verjetno NE teče | **FIXAN (R164)** — opcija 1 iz issue #140: ločen cron path `/api/cron/scheduled-emails-process` z GET===POST delegacijo na POST obdelavo (vzorec outbox :18-20); vercel.json vnos 0 2 PREUSMERJEN (ostane 2/2 Hobby cron mest); stats kontrakt GET /api/scheduled-emails/process nespremenjen (R85-4c + R160 pini nedotaknjeni); pini r164 unit: vercel.json registracija + maxDuration, 401 fail-closed, cron GET 200 + obdelava, lokacijski admin 403, GET===POST pariteta |
+| R166-F1 | P2 | FURS batch: `instanceof Buffer` je zavrnil string PEM (primarna OpenSSL pot loaderja vrača string) → generateZOI brez ključa (prod: throw, test: neskladen SHA-256 fallback ZOI) + manjkajoč ensureDecrypted — latentno, izbruhne ob sim→real | **FIXAN (R166)** — union `string \| Buffer \| undefined` skozi configCache + processBatchReceipt (single-path pariteta verify-invoice :161-182) + ensureDecrypted na batch geslu; 3 passthrough pina (r166-batch-key) |
+| R166-F2 | P2 | src/lib/env.ts mrtev sloj — superRefine "FURS_ALLOW_SIMULATION v produkciji" se nikoli ne izvede (0 importov v src/ in tests/) | **DOCUMENT (R166)** — fajl-header opomba (NI se zanašati na ta sloj); živi guardi: server.js:17-33 + boot-guard.ts (health detailed); priklop prek instrumentation = ločena odločitev |
+| R166-F3 | P3 | health checkFurs bere FURS_ENVIRONMENT, koda/dokumentacija konfigurirata FURS_ENV → furs check skozi dokumentirano konfiguracijo vedno not_configured | **FIXAN (R166)** — tolerantno `FURS_ENV ?? FURS_ENVIRONMENT` + detail tekst; r96 regresija zelena (pina statusa, ne tekst) |
+| R166-F4 | P3 | Storno sim asimetrija: FURS_ALLOW_SIMULATION=true → storno IZVEDEN, stornoReceipt fiscalVerified=true (namerna "Test 5.3" izjema) — nepinana | **PINAN (R166)** — T4/T5 v r166-sim-mode (z flagom: izveden + success=true; brez: 400 + FURS_STORNO_FAILED + zero transakcije); obnašanje nespremenjeno |
+| R166-F5 | P3 | Sim EOR generiran a zavrnjen (failResponse eor:'', DB nikoli ne vidi vrednosti) + mrtva "(SIMULACIJA)" success veja | **FIXAN (R166)** — eor propagiran v 400 odgovor (UI debug; DB ostane EOR-prazen — ni overitev); mrtva veja dokumentirana komentarjem (obrambna) |
+| R166-F6 | P3 | generateFursVerificationUrl hardkodira prod validator URL (tudi za test okolje), 0 klicalcev | DEFER — mrtvi helper; pri morebitnem brisanju/priklopu odločiti o URL strategiji |
+| R166-F7 | P3 | sw.js FURS Background Sync POST brez Authorization headerja → 401/403 (sync funkcionalno mrtev) + hipotetično pobere celoten queue brez per-receipt preverjanja | DEFER — skladno z "FURS receipt sync PARTIAL" (§7 S12, mehanika sedaj imenovana); SW auth = ločen obseg |
+| R166-F8 | P3 | FURS cert gesla se pišejo PLAINTEXT (ensureEncrypted 0 klicalcev; .env.example trditev o AES-256-GCM ne drži za FURS polja) | DEFER — pred sim→real: šifriranje write-path (locations POST/PUT) ALI popravek .env.example trditve |
+| R166-F9 | P3 | Drobnarije: (a) .env.example FURS_ALLOW_SIMULATION komentar obrnjena formulacija, (c) zoi.ts hint "FURS_ENVIRONMENT=test" ne-obstoječa varjanta; (b) route.ts:92-94 URL duplikat, (d) checklist:31 brez cross-ref na README:532 | **FIXANI (R166): a + c; DEFER: b + d** |
 
 ---
 
@@ -201,3 +212,10 @@ GET stats-only → registrirani cron 0 2 verjetno ne procesira; issue #140, [ANA
 **Dodatek (R164)**: R163-S1 FIXAN — ločen cron path `/api/cron/scheduled-emails-process`
 (GET===POST delegacija po outbox vzorcu), vercel.json vnos 0 2 preusmerjen (2/2 Hobby
 mest ohranjena); dashboard stats kontrakt ostaja nespremenjen (issue #140 zaprt).
+**Dodatek (R166)**: FURS sim-mode validacija poglobitev (forenzični audit R166-a, 9
+findings). FIX: R166-F1 (batch ZOI ključ union + ensureDecrypted), R166-F3 (health
+FURS_ENV tolerantno), R166-F5 (sim EOR propagacija); PIN: R166-F4 (storno sim
+asimetrija); DOCUMENT: R166-F2 (env.ts mrtev sloj), R166-F9a/c; DEFER: R166-F6/F7/F8.
+NOVI testi: r166-sim-mode (5), r166-batch-key (3), r166-timezone-dst (5). Anti-overclaim
+ostaja: FURS je koda-complete + sim-mode strukturno validiran, **NOT PHYSICALLY
+VALIDATED** z realnim FURS okoljem (mTLS/JWS/EOR — §7 točka 7).

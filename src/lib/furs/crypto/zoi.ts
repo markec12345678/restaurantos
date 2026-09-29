@@ -69,7 +69,7 @@ export function generateZOI(
       throw new Error(
         'FURS ZOI: privatni ključ manjka v production okolju. ' +
         'Naloži certifikat (FURS_CERT_PATH / FURS_CERT_PASSWORD) pred izdajo računov. ' +
-        'Če želiš dovoliti testni fallback, nastavi FURS_ENVIRONMENT=test.'
+        'Če želiš dovoliti testni fallback, nastavi FURS_ENV=test (kanonska varjanta).'
       )
     }
     // Test okolje: uporabi SHA-256 fallback (ni skladno s FURS, a dovoljeno za dev)

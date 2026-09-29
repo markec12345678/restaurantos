@@ -13,6 +13,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { validateFursConfig, loadCertificatePrivateKey } from '@/lib/furs'
 import { handleApiError } from '@/lib/api-utils'
+import { ensureDecrypted } from '@/lib/crypto/secrets'
 import { buildFursConfig, fetchAndLockUnverifiedReceipts, processBatchReceipt, type BatchReceiptResult } from './_helpers'
 
 
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
     }
 
     // FIX P0-C3A: Cache config + privateKey per locationId
-    const configCache = new Map<string, { config: ReturnType<typeof buildFursConfig>; privateKeyBuf?: Buffer; valid: boolean; error?: string }>()
+    const configCache = new Map<string, { config: ReturnType<typeof buildFursConfig>; privateKeyBuf?: string | Buffer; valid: boolean; error?: string }>()
 
     async function getConfigForLocation(locationId: string | null | undefined) {
       const key = locationId || '__no_location__'
@@ -108,18 +109,24 @@ export async function POST(req: Request) {
 
       const validation = validateFursConfig(config)
       if (!validation.valid) {
-        const entry = { config, privateKeyBuf: undefined as Buffer | undefined, valid: false, error: validation.errors.join(', ') }
+        const entry = { config, privateKeyBuf: undefined as string | Buffer | undefined, valid: false, error: validation.errors.join(', ') }
         configCache.set(key, entry)
         return entry
       }
 
       // R125 (issue #37): podpisni ključ izključno iz Location (settings.furs* MRTVA)
       const certPath = location?.fursCertPath || ''
-      const certPassword = location?.fursCertPassword || ''
+      // R166 (F1): geslo skozi ensureDecrypted — ista bralna konvencija kot
+      // config-resolver :110 / submitToFurs / storno (idempotentno za plaintext).
+      const certPassword = ensureDecrypted(location?.fursCertPassword || '')
       const privateKey = (certPath && certPassword)
         ? loadCertificatePrivateKey(certPath, certPassword)
         : undefined
-      const privateKeyBuf = privateKey instanceof Buffer ? privateKey : undefined
+      // R166 (F1): loader vrača string PEM (OpenSSL primarna pot, pkcs12-loader :50/:75)
+      // ALI string fallback — prejšnji `instanceof Buffer` je string ZAVRNIL →
+      // privateKeyBuf=undefined → generateZOI brez ključa (prod: throw, test: neskladen
+      // SHA-256 fallback ZOI). Single path (verify-invoice :161-182) prenaša union.
+      const privateKeyBuf = privateKey ?? undefined
 
       const entry = { config, privateKeyBuf, valid: true }
       configCache.set(key, entry)

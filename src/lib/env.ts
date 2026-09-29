@@ -1,5 +1,12 @@
 import { logger } from "@/lib/logger"
 // ============================================
+// ⚠️ R166 (F2): TA MODUL JE TRENUTNO NE-AKTIVEN SLOJ (0 importov v src/ in
+// tests/ — njegov superRefine guard "FURS_ALLOW_SIMULATION v produkciji"
+// se NIKOLI ne izvede). Živi guardi so: server.js:17-33 (Docker/VPS) +
+// boot-guard.ts (health detailed kanal na Vercelu). Priklop (npr. prek
+// instrumentation/register) je ločena odločitev — dokler tega ni, se NI
+// zanašati na module-level env validacijo iz tega fajla.
+// ============================================
 // VALIDACIJA OKOLJSKIH SPREMENLJIVK Z ZOD
 // Fail-fast ob zagonu — prepreči runtime napake zaradi manjkajočih/napačnih env spremenljivk
 // Uporaba: import { env } from '@/lib/env'

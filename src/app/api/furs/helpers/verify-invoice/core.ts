@@ -112,7 +112,10 @@ export async function verifyInvoice(req: Request): Promise<Response> {
         const failResponse = NextResponse.json({
           success: false,
           zoi,
-          eor: '',
+          // R166 (F5): sim veja generira determinističen EOR (verify-invoice :140) —
+          // prej je bil tiho zavrnjen (odgovor/DB nikoli nista videla vrednosti);
+          // propagacija je uporabna za UI debug, DB ostane EOR-prazna (ni overitev).
+          eor: result.eor || '',
           fiscalVerified: false,
           fiscalStatus: 'pending',
           isSimulation: result.isSimulation,
@@ -123,6 +126,10 @@ export async function verifyInvoice(req: Request): Promise<Response> {
         return failResponse
       }
 
+      // R166 (F5): veja isSimulation v spodnjem success odgovoru je TRENUTNO
+      // nedosegljiva — sim mode vrača success=false (verify-invoice :135-145),
+      // zato sim zahtevki končajo v !result.success zgoraj. Veja ostane
+      // obrambna (prihodnji sim-success kontrakt), ne smrti koda.
       // Uspešna overitev
       const qrContent = await handleSuccessfulVerification(
         receipt!, order, settings, config, zoi, result, authResult.session?.employeeId,

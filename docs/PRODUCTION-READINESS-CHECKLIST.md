@@ -269,7 +269,7 @@
 4. [ ] Rotate NEXTAUTH_SECRET
 5. [ ] Run `/api/admin/migrate?apply=true` on production
 6. [ ] Seed initial data (employees, menu, tables)
-7. [ ] Test FURS fiscalization end-to-end
+7. [ ] Test FURS fiscalization end-to-end (sim→real prehod: cert p12 zahtevek na sd.fu@gov.si → `Location.fursCertPath`+geslo, `FURS_ENV=production`, `FURS_ALLOW_SIMULATION=false`, `Location.premisesId` registracija, CA veriga — glej PRODUCTION-VALIDATION §7; R166-F1 batch ZOI ključ fix je nalagan PRED prvim bulk re-verify)
 8. [ ] Test Stripe payment end-to-end
 
 ### Day -1: Final Verification

@@ -78,7 +78,7 @@ export async function processBatchReceipt(
   receipt: any, // eslint-disable-line @typescript-eslint/no-explicit-any
   settings: any, // eslint-disable-line @typescript-eslint/no-explicit-any
   config: FursConfig,
-  privateKey: Buffer | undefined,
+  privateKey: string | Buffer | undefined, // R166 (F1): union — loader vrača string PEM
 ): Promise<BatchReceiptResult> {
   try {
     const zoi = generateZOI({

@@ -100,7 +100,10 @@ async function checkRedis(): Promise<HealthCheck> {
 }
 
 function checkFurs(): HealthCheck {
-  const env = process.env.FURS_ENVIRONMENT
+  // R166 (F3): kanonska varjanta je FURS_ENV (.env.example:99, config-resolver :147);
+  // FURS_ENVIRONMENT je legacy fallback — prej je bil obrnjen (samo ENVIRONMENT)
+  // → health furs check je bil skozi dokumentirano konfiguracijo VEDNO not_configured.
+  const env = process.env.FURS_ENV ?? process.env.FURS_ENVIRONMENT
 
   // FURS AUDIT 2026-09-09 (boot guard): simulation mode v produkciji je
   // KRITIČNA napaka konfiguracije — poročaj v health odgovoru (Vercel nima
@@ -118,7 +121,7 @@ function checkFurs(): HealthCheck {
     return {
       name: 'furs',
       status: 'not_configured',
-      detail: 'FURS_ENVIRONMENT not set',
+      detail: 'FURS_ENV not set (legacy FURS_ENVIRONMENT accepted as fallback)',
     }
   }
   if (env === 'test') {
