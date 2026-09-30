@@ -1,0 +1,9 @@
+{
+  "//": "Sandbox split-typecheck kanon (R174): testna polovica — tsc 0 = ta config + tsconfig.check-src.json, OBA exit 0.",
+  "extends": "./tsconfig.json",
+  "include": [
+    "next-env.d.ts",
+    "tests/**/*.ts",
+    "tests/**/*.tsx"
+  ]
+}

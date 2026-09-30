@@ -83,4 +83,14 @@ export const navSl: Record<string, string> = {
   // R137 (epic #115 P1-13): voznikov mobilni zaslon
   'nav.driver': 'Dostave',
 
+  // — IA runda R174 (epic #144 P0 korak 4): skupinske glave (nav.group.*) —
+  // vir resnice: MODULE_GROUPS.labelKey (src/lib/modules/registry.ts)
+  'nav.group.sales': 'Prodaja',
+  'nav.group.cash': 'Blagajna',
+  'nav.group.guests': 'Gosti & CRM',
+  'nav.group.menu': 'Meni & zaloge',
+  'nav.group.staff': 'Osebje',
+  'nav.group.analytics': 'Analitika',
+  'nav.group.system': 'Sistem',
+
 }

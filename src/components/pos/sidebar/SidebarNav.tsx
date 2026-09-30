@@ -156,7 +156,9 @@ export const SidebarNav = memo(function SidebarNav({
     <nav className="flex-1 px-2 pb-3 overflow-y-auto custom-scrollbar" aria-label="Glavna navigacija">
       {grouped.sections.map(({ group, items }) => (
         <div key={group.id}>
-          {renderGroupHeader(group.id, group.label, items.length)}
+          {/* IA runda R174 (epic #144 P0 korak 4): glava = t(labelKey) iz
+              registerja (nav.group.*) — prej hardcoded SL group.label */}
+          {renderGroupHeader(group.id, t(group.labelKey), items.length)}
           {expanded.includes(group.id) && (
             <div id={`nav-group-${group.id}`} className="space-y-0.5 pl-1.5">
               {items.map(renderItem)}

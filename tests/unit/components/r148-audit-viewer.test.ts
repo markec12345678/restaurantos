@@ -35,6 +35,8 @@
 // ============================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// R174 IA: navItems fs-pin prenesen na centralni register (vir resnice)
+import { MODULE_REGISTRY } from '@/lib/modules/registry'
 import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -448,9 +450,10 @@ describe('R148 AuditLogViewer — infra pini', () => {
     expect(queryKeys.audit).toBe(auditKeys)
   })
 
-  it('15. fs-pin: navItems audit-log adminOnly + module-registry vnos + barrel import v komponenti', () => {
-    const navItemsSrc = readFileSync(join(process.cwd(), 'src/components/pos/sidebar/navItems.ts'), 'utf8')
-    expect(navItemsSrc).toContain("{ id: 'audit-log', labelKey: 'nav.auditLog', icon: ShieldAlert, adminOnly: true }")
+  it('15. fs-pin: register audit-log adminOnly (R174: vir = registry) + module-registry vnos + barrel import v komponenti', () => {
+    const regSrc = readFileSync(join(process.cwd(), 'src/lib/modules/registry.ts'), 'utf8')
+    expect(regSrc).toContain("{ id: 'audit-log', labelKey: 'nav.auditLog', icon: 'ShieldAlert', group: 'system', groupOrder: 14, adminOnly: true")
+    expect(MODULE_REGISTRY.find((m) => m.id === 'audit-log')?.adminOnly).toBe(true)
     const registrySrc = readFileSync(join(process.cwd(), 'src/app/components/module-registry.tsx'), 'utf8')
     expect(registrySrc).toContain("'audit-log': AuditLogViewer")
     const viewerSrc = readFileSync(join(process.cwd(), 'src/components/pos/AuditLogViewer.tsx'), 'utf8')

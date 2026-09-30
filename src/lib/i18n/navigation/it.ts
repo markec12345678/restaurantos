@@ -82,4 +82,13 @@ export const navIt: Record<string, string> = {
   // R137 (epic #115 P1-13): voznikov mobilni zaslon
   'nav.driver': 'Consegne',
 
+  // — IA round R174 (epic #144 P0 step 4): intestazioni gruppo (nav.group.*) —
+  'nav.group.sales': 'Vendite',
+  'nav.group.cash': 'Cassa',
+  'nav.group.guests': 'Ospiti & CRM',
+  'nav.group.menu': 'Menù & scorte',
+  'nav.group.staff': 'Personale',
+  'nav.group.analytics': 'Analisi',
+  'nav.group.system': 'Sistema',
+
 }

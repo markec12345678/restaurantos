@@ -1,14 +1,17 @@
 // ============================================
-// MODULE REGISTRY — drift-gate (§6, epic #144, R173)
+// MODULE REGISTRY — drift-gate (§6, epic #144, R173 + IA runda R174)
 // ============================================
 //
 // Uveljavlja invarianto centralnega registra (src/lib/modules/registry.ts):
 //   register ≡ navItems ≡ moduleComponents ≡ i18n ×5 jezikov
 //   + canAccessModule pariteta z Sidebar semantiko (8 uporabniških likov × 75)
+//   + R174 IA: navItems/navGroups DERIVIRANA iz registerja (fs-pin derivacije,
+//     NAV_ICONS pokritost, groupOrder all-or-none + element-wise red,
+//     mobile/highlight sodbe, nav.group.* i18n ×5)
 //
-// Kanon vzorcev (r147/r148/r149): fs-pini z regexi za vire, ki jih ni smiselno
+// Kanon vzorcev (r147/r148/r149): fs-pini za vire, ki jih ni smiselno
 // importirati (module-registry.tsx ima JSX/dynamic), import za čiste podatke
-// (navItems, registry, tFor). 29 testov = pini R173 baseline.
+// (navItems, registry, tFor, NAV_ICONS). 35 testov = R174 baseline.
 // ============================================
 
 import { describe, it, expect } from 'vitest'
@@ -23,7 +26,7 @@ import {
   canAccessModule,
   type ModuleAccessUser,
 } from '@/lib/modules/registry'
-import { navItems, navGroups } from '@/components/pos/sidebar/navItems'
+import { navItems, navGroups, NAV_ICONS } from '@/components/pos/sidebar/navItems'
 import { tFor, type Locale } from '@/lib/i18n'
 
 const root = process.cwd()
@@ -40,13 +43,6 @@ const moduleMapSlice = registryTsxSrc.slice(
 const moduleMapKeys = [
   ...moduleMapSlice.matchAll(/^\s+'?([a-z][a-z0-9-]*)'?:\s+[A-Z][A-Za-z0-9]*,\s*$/gm),
 ].map((m) => m[1])
-
-// fs-parse: lucide ikona iz navItems vnosov (`{ id: 'x', labelKey: 'y', icon: Z, ...`)
-const navIconById = new Map(
-  [...navItemsSrc.matchAll(/\{ id: '([^']+)', labelKey: '[^']+', icon: ([A-Za-z0-9]+)/g)].map(
-    (m) => [m[1], m[2]],
-  ),
-)
 
 const LOCALES: Locale[] = ['sl', 'en', 'it', 'hr', 'de']
 
@@ -85,10 +81,11 @@ describe('Module Registry (§6): struktura', () => {
     expect(new Set(MODULE_IDS).size).toBe(75)
   })
 
-  it('7 skupin; labele ≡ navGroups.label (hardcoded SL, dokumentirana sodba)', () => {
+  it('7 skupin; labele + labelKey ≡ navGroups (label = SL fallback, labelKey = i18n, R174)', () => {
     expect(MODULE_GROUPS).toHaveLength(7)
     expect(MODULE_GROUPS.map((g) => g.id)).toEqual(navGroups.map((g) => g.id))
     expect(MODULE_GROUPS.map((g) => g.label)).toEqual(navGroups.map((g) => g.label))
+    expect(MODULE_GROUPS.map((g) => g.labelKey)).toEqual(navGroups.map((g) => g.labelKey))
   })
 
   it('DOMAIN_BY_GROUP: vsi 7 group-id → domena; 6 domen v uporabi; meta.domain izpeljan', () => {
@@ -157,6 +154,36 @@ describe('Module Registry (§6): struktura', () => {
   it('labelKey unikatni (75 različnih i18n ključev)', () => {
     expect(new Set(MODULE_REGISTRY.map((m) => m.labelKey)).size).toBe(75)
   })
+
+  it('groupOrder: all-or-none per grupa; unikaten znotraj grupe (IA runda R174)', () => {
+    for (const group of MODULE_GROUPS) {
+      const members = MODULE_REGISTRY.filter((m) => m.group === group.id)
+      const withOrder = members.filter((m) => m.groupOrder !== undefined)
+      expect(withOrder.length === 0 || withOrder.length === members.length, group.id).toBe(true)
+      expect(new Set(withOrder.map((m) => m.groupOrder)).size, group.id).toBe(withOrder.length)
+    }
+  })
+
+  it('highlight: točno [orders] (SidebarNav poseben aktivni stil)', () => {
+    expect(MODULE_REGISTRY.filter((m) => m.highlight).map((m) => m.id)).toEqual(['orders'])
+    expect(navItems.find((n) => n.id === 'orders')?.highlight).toBe(true)
+  })
+
+  it('mobile sodba (R174): 12 back-office = false, 63 = true; invarianta false ⇒ adminOnly || long-tail', () => {
+    const MOBILE_FALSE = [
+      'audit-log', 'compliance', 'conflicts', 'data-portability', 'fraud-detection',
+      'ghost-kitchen', 'integrations', 'multi-location', 'offline-queue', 'outbox',
+      'subscription', 'webhooks',
+    ].sort()
+    const actualFalse = MODULE_REGISTRY.filter((m) => !m.mobile).map((m) => m.id).sort()
+    expect(actualFalse).toEqual(MOBILE_FALSE)
+    expect(MODULE_REGISTRY.filter((m) => m.mobile)).toHaveLength(63)
+    for (const m of MODULE_REGISTRY) {
+      if (!m.mobile) {
+        expect(m.adminOnly === true || m.priority === 'long-tail', m.id).toBe(true)
+      }
+    }
+  })
 })
 
 // — Drift-gate: register ≡ navItems ≡ moduleComponents —
@@ -174,11 +201,13 @@ describe('Module Registry (§6): drift-gate navItems / moduleComponents', () => 
     }
   })
 
-  it('ikone ≡ navItems.icon (fs-parse lucide imena)', () => {
-    expect(navIconById.size).toBe(75)
+  it('ikone: NAV_ICONS adapter pokrije vsak registry.icon (unikatni nabor ≡; vseh 75 resolved)', () => {
+    expect(new Set(Object.keys(NAV_ICONS))).toEqual(new Set(MODULE_REGISTRY.map((m) => m.icon)))
     for (const meta of MODULE_REGISTRY) {
-      expect(meta.icon, meta.id).toBe(navIconById.get(meta.id))
+      expect(NAV_ICONS[meta.icon], meta.id).toBeDefined()
     }
+    // deriviran navItems ima definiran icon za vseh 75 (brez luknje)
+    for (const nav of navItems) expect(nav.icon, nav.id).toBeDefined()
   })
 
   it('dostop ≡ navItems (permission/adminOnly per id)', () => {
@@ -189,13 +218,17 @@ describe('Module Registry (§6): drift-gate navItems / moduleComponents', () => 
     }
   })
 
-  it('skupine ≡ navGroups (članstvo 75↔75; vrstni red pina test 9/navGroups render)', () => {
-    // INVARIANTA je ČLANSTVO (set); vrstni red znotraj skupine se razlikuje
-    // med navItems (register) in navGroups.itemIds (render vir) po naravi —
-    // drift-gate pina registre, ne dveh ločenih vrstnih redov.
+  it('skupine ≡ navGroups: članstvo + INTRA-GROUP VRSTNI RED element-wise (R174: red = groupOrder sodba v registerju)', () => {
+    // R173: samo članstvo (set) — vrstni red se je razlikoval po naravi.
+    // R174: intra-group red je sodba v registerju (groupOrder) in navGroups
+    // je DERIVIRAN — zato element-wise pin per grupa.
+    const regIndex = new Map(MODULE_IDS.map((id, i) => [id, i] as const))
     for (const group of navGroups) {
-      const registryIds = MODULE_REGISTRY.filter((m) => m.group === group.id).map((m) => m.id)
-      expect([...registryIds].sort(), group.id).toEqual([...group.itemIds].sort())
+      const registryIds = MODULE_REGISTRY
+        .filter((m) => m.group === group.id)
+        .sort((a, b) => (a.groupOrder ?? regIndex.get(a.id) ?? 0) - (b.groupOrder ?? regIndex.get(b.id) ?? 0))
+        .map((m) => m.id)
+      expect(registryIds, group.id).toEqual(group.itemIds)
     }
   })
 
@@ -205,6 +238,13 @@ describe('Module Registry (§6): drift-gate navItems / moduleComponents', () => 
 
   it('fs: moduleComponents ključi ≡ MODULE_IDS (75↔75 invarianta)', () => {
     expect([...moduleMapKeys].sort()).toEqual([...MODULE_IDS].sort())
+  })
+
+  it('fs: navItems/navGroups sta DERIVIRANA iz registerja (prepreči regresijo na ročni seznam)', () => {
+    expect(navItemsSrc).toContain('export const navItems: NavItem[] = MODULE_REGISTRY.map(')
+    expect(navItemsSrc).toContain('export const navGroups: NavGroup[] = MODULE_GROUPS.map(')
+    // ročni literal vnos { id: 'x', labelKey: ... } ne sme več obstajati
+    expect(navItemsSrc).not.toMatch(/\{ id: '[a-z-]+', labelKey: '/)
   })
 })
 
@@ -226,6 +266,24 @@ describe('Module Registry (§6): i18n drift-gate (5 jezikov)', () => {
       const src = readSrc('src', 'lib', 'i18n', 'navigation', `${lang}.ts`)
       const keys = src.match(/'nav\.[a-zA-Z0-9-]+':/g) ?? []
       expect(keys, lang).toHaveLength(75)
+    }
+  })
+
+  it('i18n: MODULE_GROUPS.labelKey (nav.group.*) se razreši v vseh 5 jezikih (R174)', () => {
+    for (const locale of LOCALES) {
+      for (const group of MODULE_GROUPS) {
+        const resolved = tFor(locale, group.labelKey)
+        expect(resolved.length, `${locale} ${group.labelKey}`).toBeGreaterThan(0)
+        expect(resolved, `${locale} ${group.labelKey}`).not.toBe(group.labelKey)
+      }
+    }
+  })
+
+  it('fs: navigation/*.ts ima točno 7 nav.group.* ključev v vsakem od 5 jezikov (R174)', () => {
+    for (const lang of LOCALES) {
+      const src = readSrc('src', 'lib', 'i18n', 'navigation', `${lang}.ts`)
+      const keys = src.match(/'nav\.group\.[a-z]+':/g) ?? []
+      expect(keys, lang).toHaveLength(7)
     }
   })
 })

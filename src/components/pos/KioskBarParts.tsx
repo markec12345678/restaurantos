@@ -1,16 +1,14 @@
 'use client'
 
 import { memo } from 'react'
-import { ShoppingCart, ChefHat, BarChartBig, Store, Clock } from 'lucide-react'
-
-// ============================================
-// IKONE ZA MODULE
-// ============================================
-export const moduleConfig: Record<string, { label: string; icon: React.ReactNode }> = {
-  orders: { label: 'Prodaja', icon: <ShoppingCart className="h-4 w-4" /> },
-  kitchen: { label: 'Kuhinja', icon: <ChefHat className="h-4 w-4" /> },
-  tables: { label: 'Mize', icon: <BarChartBig className="h-4 w-4" /> },
-}
+import { Store, Clock } from 'lucide-react'
+// IA runda R174 (epic #144 P0 korak 4): moduleConfig divergenca odstranjena —
+// tabi berijo metadata iz centralnega registra (§6) + i18n labelKey.
+// Prej: hardcoded 3-vnosna mapa (orders/kitchen/tables, SL labele) — 2. vir
+// resnice, ki ni sledil ni registerju ni jezikom.
+import { getModuleMeta } from '@/lib/modules/registry'
+import { NAV_ICONS } from '@/components/pos/sidebar/navItems'
+import { useI18n } from '@/hooks/useI18n'
 
 // ============================================
 // MODULE TABS SUB-COMPONENT
@@ -23,11 +21,17 @@ interface ModuleTabsProps {
 }
 
 export const ModuleTabs = memo(function ModuleTabs({ activeModule, onModuleChange, allowedModules }: ModuleTabsProps) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   return (
     <div className="flex gap-0.5 ml-1">
       {allowedModules.map((moduleId) => {
-        const config = moduleConfig[moduleId]
-        if (!config) return null
+        // §6 (R174): metadata iz registerja; neznani modul → tiho spusti
+        // (isti kontrakt kot prejšnji moduleConfig lookup miss)
+        const meta = getModuleMeta(moduleId)
+        if (!meta) return null
+        const Icon = NAV_ICONS[meta.icon]
+        if (!Icon) return null
         const isActive = activeModule === moduleId
         return (
           <button
@@ -39,8 +43,8 @@ export const ModuleTabs = memo(function ModuleTabs({ activeModule, onModuleChang
                 : 'text-muted-foreground hover:bg-accent'
             }`}
           >
-            {config.icon}
-            <span className="hidden sm:inline">{config.label}</span>
+            <Icon className="h-4 w-4" />
+            <span className="hidden sm:inline">{t(meta.labelKey)}</span>
           </button>
         )
       })}

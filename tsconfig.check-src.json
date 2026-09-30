@@ -1,0 +1,11 @@
+{
+  "//": "Sandbox split-typecheck kanon (R174): 4GB host presega full-tsc peak (2480 datotek) — tsc 0 = ta config + tsconfig.check-tests.json, OBA exit 0. CI (7GB runner) ostaja na full tsconfig.json.",
+  "extends": "./tsconfig.json",
+  "include": [
+    "next-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "scripts/**/*.ts",
+    "scripts/**/*.tsx"
+  ]
+}

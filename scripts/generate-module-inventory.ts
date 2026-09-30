@@ -51,12 +51,13 @@ for (const group of MODULE_GROUPS) {
   const domain = DOMAIN_BY_GROUP[group.id as ModuleGroupId]
   lines.push(`## ${group.label} (\`${group.id}\` · domena: \`${domain}\` · ${mods.length})`)
   lines.push('')
-  lines.push('| Modul | Naziv (sl) | Dostop | Prioriteta | Povezani |')
-  lines.push('|---|---|---|---|---|')
+  lines.push('| Modul | Naziv (sl) | Dostop | Prioriteta | Mobilno | Povezani |')
+  lines.push('|---|---|---|---|---|---|')
   for (const m of mods) {
     const name = tFor('sl', m.labelKey)
     const related = m.relatedModules.map((r) => `\`${r}\``).join(', ')
-    lines.push(`| \`${m.id}\` | ${name} | ${accessLabel(m)} | ${priorityLabel[m.priority]} | ${related} |`)
+    const mobile = m.mobile ? '✓' : '—'
+    lines.push(`| \`${m.id}\` | ${name} | ${accessLabel(m)} | ${priorityLabel[m.priority]} | ${mobile} | ${related} |`)
   }
   lines.push('')
 }
@@ -66,6 +67,7 @@ lines.push('')
 lines.push('- **Dostop**: `admin/manager` = adminOnly; sicer zahtevano dovoljenje (`take_orders`, `manage_cash`, `manage_employees`, `view_reports`). Vrata: `canAccessModule()` (Sidebar semantika).')
 lines.push('- **Prioriteta**: `core` = Golden Path semena (epic #144 §7); `long-tail` = specialistični moduli; `secondary` = ostalo. Sodbe se spreminjajo z rundami (glej register header).')
 lines.push('- **Domena**: groba izpeljava iz skupine (`DOMAIN_BY_GROUP`) — za cockpite/IA (P0 korak 4+).')
+lines.push('- **Mobilno** (IA runda R174): `✓` = operativno na mobilnem/tablici; `—` = back-office desktop sodba (12 modulov; invarianta: `—` ⇒ adminOnly ∨ long-tail).')
 lines.push('- Standalone ruta: samo `driver` → `/driver` (ostali moduli živijo v in-app POS plasteh).')
 lines.push('')
 

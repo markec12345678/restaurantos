@@ -1,10 +1,27 @@
 // ============================================
-// NAVIGACIJSKI ELEMENTI ZA SIDEBAR
+// NAVIGACIJSKI ELEMENTI ZA SIDEBAR — IA runda (P0 korak 4, R174)
+// ============================================
+//
+// DERIVIRAN adapter iz centralnega registra (src/lib/modules/registry.ts):
+//   - navItems = MODULE_REGISTRY.map(...) — id/labelKey/access/highlight
+//     prihajajo iz registerja; register je VIR RESNICE (§6, epic #144).
+//   - navGroups = MODULE_GROUPS.map(...) — label/labelKey iz registerja,
+//     itemIds = registry člani sortirani po groupOrder (navGroups sodba
+//     intra-group reda, PINANO z drift-gate element-wise).
+//   - NAV_ICONS = edini adapter string→lucide komponenta (register ostane
+//     pure lib brez lucide importov). Ključi ≡ registry.icon (drift-gate).
+//
+// Nov modul = ENA vrstica v registerju (+ ikona v NAV_ICONS če nova,
+// + nav.* ključ ×5 jezikov, + moduleComponents lazy map). Sidebar in
+// CommandPalette ostajata klicatelja tega adapterja — brez ročnih seznamov.
+// Zgodovinski komentarji sodbe (R129/R137/R141-c ...) živijo v worklogu
+// in git zgodovini; semantične sodbe so prenesene v registry polja.
 // ============================================
 
+import type { ComponentType } from 'react'
 import {
-  LayoutDashboard, ShoppingCart, BarChartBig, UtensilsCrossed, Package, Users,
-  BarChart3, ChefHat, Wallet, Settings, SlidersHorizontal, Truck, CreditCard,
+  LayoutDashboard, ShoppingCart, ChefHat, BarChartBig, UtensilsCrossed, Package, Users,
+  BarChart3, Wallet, Settings, SlidersHorizontal, Truck, CreditCard,
   Award, Printer, Webhook, CalendarDays, Bike,
   Brain, LayoutGrid, Calendar, UserCircle, Sparkles,
   Calculator, ClipboardList, Factory, Plug, MapPin, CalendarClock, Layers,
@@ -20,10 +37,16 @@ import {
   TrendingUp,
 } from 'lucide-react'
 
+import {
+  MODULE_REGISTRY,
+  MODULE_GROUPS,
+  MODULE_IDS,
+} from '@/lib/modules/registry'
+
 export interface NavItem {
   id: string
   labelKey: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: ComponentType<{ className?: string }>
   highlight?: boolean
   permission?: string
   adminOnly?: boolean
@@ -35,119 +58,101 @@ export interface NavItem {
 export interface NavGroup {
   id: string
   label: string
+  /** i18n ključ skupinske glave (≡ MODULE_GROUPS.labelKey, R174) */
+  labelKey: string
   itemIds: string[]
 }
 
-export const navGroups: NavGroup[] = [
-  { id: 'sales', label: 'Prodaja', itemIds: [
-    'orders', 'kitchen', 'floor-plan', 'tables', 'waitlist', 'course-pacing',
-    'kitchen-prep', 'kitchen-stations', 'wait-time', 'delivery', 'delivery-tracking', 'driver', 'order-bump',
-  ] },
-  { id: 'cash', label: 'Blagajna', itemIds: [
-    'cash-register', 'shifts', 'end-of-day', 'z-report', 'wallet-payment',
-  ] },
-  { id: 'guests', label: 'Gosti & CRM', itemIds: [
-    'guests', 'reservations', 'table-reservation-sync', 'gift-cards', 'loyalty', 'customer-timeline', 'feedback',
-  ] },
-  { id: 'menu', label: 'Meni & zaloge', itemIds: [
-    'menu', 'inventory', 'inventory-alerts', 'food-cost', 'recipes', 'recipe-scaling',
-    'suppliers', 'reorder-center', 'waste-tracker', 'allergen-matrix', 'nutrition', 'vendor-scorecard',
-  ] },
-  { id: 'staff', label: 'Osebje', itemIds: [
-    'employees', 'staff-schedule', 'shift-overview', 'tip-manager', 'staff-performance', 'labor-reports',
-  ] },
-  { id: 'analytics', label: 'Analitika', itemIds: [
-    // R141-c (P2-28): dnevni pregled — prvi element analitike (poleg dashboard/reports)
-    'briefing', 'dashboard', 'reports', 'advanced-analytics', 'menu-engineering', 'table-turnover', 'expenses', 'profit-loss',
-    'tax-report', 'ghost-kitchen', 'ai-forecast', 'ai-recommendations',
-  ] },
-  { id: 'system', label: 'Sistem', itemIds: [
-    'configuration', 'settings', 'locations', 'devices', 'data-portability', 'multi-location', 'printers', 'integrations',
-    'webhooks', 'furs', 'subscription', 'compliance', 'haccp', 'audit-log',
-    'outbox', 'conflicts', 'offline-queue', 'notifications', 'fraud-detection', 'daily-checklist',
-  ] },
-]
+/**
+ * Ikone: registry.icon IME → lucide komponenta (client adapter).
+ * 60 unikatnih ikon za 75 modulov; drift-gate uveljavlja pokritost
+ * (vsak registry.icon ima vnos) + unikatni nabor ≡ registry.icon nabor.
+ */
+export const NAV_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  ShoppingCart,
+  ChefHat,
+  LayoutGrid,
+  BarChartBig,
+  ClipboardList,
+  Wallet,
+  CalendarDays,
+  CalendarClock,
+  Layers,
+  LayoutDashboard,
+  UserCircle,
+  UtensilsCrossed,
+  Calculator,
+  Package,
+  Factory,
+  Brain,
+  BookOpen,
+  Calendar,
+  Trophy,
+  Bell,
+  ShieldAlert,
+  Receipt,
+  ClipboardCheck,
+  FileText,
+  ShieldCheck,
+  Users,
+  Target,
+  MessageSquare,
+  BarChart3,
+  TrendingUp,
+  Sunrise,
+  MonitorSmartphone,
+  DatabaseBackup,
+  SlidersHorizontal,
+  Truck,
+  Navigation,
+  Bike,
+  HandCoins,
+  Timer,
+  Store,
+  Award,
+  Printer,
+  Webhook,
+  Plug,
+  MapPin,
+  CreditCard,
+  BellRing,
+  Activity,
+  PieChart,
+  Table2,
+  CookingPot,
+  Scale,
+  Star,
+  Sparkles,
+  Trash2,
+  Scale3d,
+  GitBranch,
+  CloudOff,
+  Nfc,
+  Settings,
+}
 
-export const navItems: NavItem[] = [
-  { id: 'orders', labelKey: 'nav.sales', icon: ShoppingCart, highlight: true, permission: 'take_orders' },
-  { id: 'kitchen', labelKey: 'nav.kitchen', icon: ChefHat, permission: 'take_orders' },
-  { id: 'floor-plan', labelKey: 'nav.floor-plan', icon: LayoutGrid, permission: 'take_orders' },
-  { id: 'tables', labelKey: 'nav.tables', icon: BarChartBig, permission: 'take_orders' },
-  { id: 'waitlist', labelKey: 'nav.waitlistFull', icon: ClipboardList, permission: 'take_orders' },
-  { id: 'cash-register', labelKey: 'nav.cash-register', icon: Wallet, permission: 'manage_cash' },
-  { id: 'shifts', labelKey: 'nav.shifts', icon: CalendarDays, permission: 'manage_cash' },
-  { id: 'staff-schedule', labelKey: 'nav.staffSchedule', icon: CalendarClock, permission: 'manage_employees' },
-  { id: 'course-pacing', labelKey: 'nav.coursePacing', icon: Layers, permission: 'take_orders' },
-  { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard, permission: 'view_reports' },
-  { id: 'guests', labelKey: 'nav.guestCRM', icon: UserCircle, permission: 'take_orders' },
-  { id: 'menu', labelKey: 'nav.menu', icon: UtensilsCrossed, adminOnly: true },
-  { id: 'food-cost', labelKey: 'nav.food-cost', icon: Calculator, adminOnly: true },
-  { id: 'inventory', labelKey: 'nav.inventory', icon: Package, adminOnly: true },
-  { id: 'suppliers', labelKey: 'nav.suppliers', icon: Factory, adminOnly: true },
-  // R129 (P1-07): Center naročil — predlogi + osnutki naročilnic
-  { id: 'reorder-center', labelKey: 'nav.reorderCenter', icon: ClipboardList, adminOnly: true },
-  { id: 'ai-forecast', labelKey: 'nav.ai-forecast', icon: Brain, adminOnly: true },
-  { id: 'recipes', labelKey: 'nav.recipes', icon: BookOpen, adminOnly: true },
-  { id: 'reservations', labelKey: 'nav.reservations', icon: Calendar, permission: 'take_orders' },
-  { id: 'staff-performance', labelKey: 'nav.staffPerformance', icon: Trophy, permission: 'view_reports' },
-  { id: 'kitchen-prep', labelKey: 'nav.kitchenPrep', icon: ChefHat, permission: 'take_orders' },
-  { id: 'notifications', labelKey: 'nav.notifications', icon: Bell, permission: 'manage_cash' },
-  { id: 'allergen-matrix', labelKey: 'nav.allergenMatrix', icon: ShieldAlert, adminOnly: true },
-  { id: 'table-turnover', labelKey: 'nav.tableTurnover', icon: LayoutGrid, permission: 'view_reports' },
-  { id: 'expenses', labelKey: 'nav.expenses', icon: Receipt, permission: 'view_reports' },
-  { id: 'daily-checklist', labelKey: 'nav.dailyChecklist', icon: ClipboardCheck, permission: 'take_orders' },
-  { id: 'end-of-day', labelKey: 'nav.endOfDay', icon: FileText, permission: 'manage_cash' },
-  { id: 'haccp', labelKey: 'nav.haccp', icon: ShieldCheck, adminOnly: true },
-  { id: 'employees', labelKey: 'nav.employees', icon: Users, permission: 'manage_employees' },
-  { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: Target, adminOnly: true },
-  { id: 'feedback', labelKey: 'nav.feedback', icon: MessageSquare, permission: 'take_orders' },
-  { id: 'reports', labelKey: 'nav.reports', icon: BarChart3, permission: 'view_reports' },
-  // R149-c (epic #115 #36): Napredna analitika — okno/granularnost/comparison (GET /api/analytics/overview)
-  { id: 'advanced-analytics', labelKey: 'nav.advancedAnalytics', icon: TrendingUp, permission: 'view_reports' },
-  // R141-c (epic #115 P2-28): dnevni pregled — manager briefing
-  { id: 'briefing', labelKey: 'nav.briefing', icon: Sunrise, permission: 'view_reports' },
-  // R142-c (epic #115 #29): Center naprav — inventar naprav (GET view_reports; mutacije admin)
-  { id: 'devices', labelKey: 'nav.devices', icon: MonitorSmartphone, permission: 'view_reports' },
-  // R147-c (epic #115 #34): Prenos podatkov — portability arhiv (GET /api/export/portability, samo admin)
-  { id: 'data-portability', labelKey: 'nav.dataPortability', icon: DatabaseBackup, adminOnly: true },
-  { id: 'configuration', labelKey: 'nav.configuration', icon: SlidersHorizontal, adminOnly: true },
-  { id: 'delivery', labelKey: 'nav.delivery', icon: Truck, permission: 'take_orders' },
-  { id: 'delivery-tracking', labelKey: 'nav.deliveryTracking', icon: Navigation, permission: 'take_orders' },
-  // R137 (epic #115 P1-13): voznikov mobilni zaslon — isti DriverApp tudi standalone /driver
-  { id: 'driver', labelKey: 'nav.driver', icon: Bike, permission: 'take_orders' },
-  { id: 'z-report', labelKey: 'nav.zReport', icon: FileText, permission: 'manage_cash' },
-  { id: 'tip-manager', labelKey: 'nav.tipManager', icon: HandCoins, permission: 'manage_employees' },
-  { id: 'wait-time', labelKey: 'nav.waitTime', icon: Timer, permission: 'take_orders' },
-  { id: 'multi-location', labelKey: 'nav.multiLocation', icon: Store, adminOnly: true },
-  { id: 'ai-recommendations', labelKey: 'nav.aiRecommendations', icon: Brain, adminOnly: true },
-  { id: 'nutrition', labelKey: 'nav.nutrition', icon: ShieldCheck, adminOnly: true },
-  { id: 'gift-cards', labelKey: 'nav.gift-cards', icon: CreditCard, permission: 'take_orders' },
-  { id: 'loyalty', labelKey: 'nav.loyalty', icon: Award, permission: 'take_orders' },
-  { id: 'printers', labelKey: 'nav.printers', icon: Printer, adminOnly: true },
-  { id: 'webhooks', labelKey: 'nav.webhooks', icon: Webhook, adminOnly: true },
-  { id: 'integrations', labelKey: 'nav.integrations', icon: Plug, adminOnly: true },
-  { id: 'furs', labelKey: 'nav.furs', icon: ShieldCheck, adminOnly: true },
-  { id: 'locations', labelKey: 'nav.locations', icon: MapPin, adminOnly: true },
-  { id: 'subscription', labelKey: 'nav.subscription', icon: CreditCard, adminOnly: true },
-  { id: 'inventory-alerts', labelKey: 'nav.inventoryAlerts', icon: BellRing, adminOnly: true },
-  { id: 'customer-timeline', labelKey: 'nav.customerTimeline', icon: UserCircle, permission: 'take_orders' },
-  { id: 'shift-overview', labelKey: 'nav.shiftOverview', icon: Activity, permission: 'manage_employees' },
-  { id: 'profit-loss', labelKey: 'nav.profitLoss', icon: PieChart, permission: 'view_reports' },
-  { id: 'table-reservation-sync', labelKey: 'nav.tableReservationSync', icon: Table2, permission: 'take_orders' },
-  { id: 'kitchen-stations', labelKey: 'nav.kitchenStations', icon: CookingPot, permission: 'take_orders' },
-  { id: 'tax-report', labelKey: 'nav.taxReport', icon: Scale, permission: 'view_reports' },
-  { id: 'vendor-scorecard', labelKey: 'nav.vendorScorecard', icon: Star, adminOnly: true },
-  { id: 'order-bump', labelKey: 'nav.orderBump', icon: Sparkles, permission: 'take_orders' },
-  { id: 'waste-tracker', labelKey: 'nav.wasteTracker', icon: Trash2, adminOnly: true },
-  { id: 'recipe-scaling', labelKey: 'nav.recipeScaling', icon: Scale3d, adminOnly: true },
-  { id: 'compliance', labelKey: 'nav.compliance', icon: ShieldCheck, adminOnly: true },
-  { id: 'audit-log', labelKey: 'nav.auditLog', icon: ShieldAlert, adminOnly: true },
-  { id: 'outbox', labelKey: 'nav.outbox', icon: Activity, adminOnly: true },
-  { id: 'ghost-kitchen', labelKey: 'nav.ghostKitchen', icon: ChefHat, permission: 'view_reports' },
-  { id: 'conflicts', labelKey: 'nav.conflicts', icon: GitBranch, adminOnly: true },
-  { id: 'offline-queue', labelKey: 'nav.offlineQueue', icon: CloudOff, adminOnly: true },
-  { id: 'wallet-payment', labelKey: 'nav.walletPayment', icon: Nfc, permission: 'manage_cash' },
-  { id: 'fraud-detection', labelKey: 'nav.fraudDetection', icon: ShieldAlert, adminOnly: true },
-  { id: 'labor-reports', labelKey: 'nav.laborReports', icon: Calendar, permission: 'view_reports' },
-  { id: 'settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
-]
+/** Register index (default intra-group red = register red ≡ navItems flat red) */
+const REG_INDEX: ReadonlyMap<string, number> = new Map(
+  MODULE_IDS.map((id, i) => [id, i] as const),
+)
+
+/** Deriviran iz registerja — ročni seznam NE SME obstajati (§6 IA, R174) */
+export const navItems: NavItem[] = MODULE_REGISTRY.map((meta) => ({
+  id: meta.id,
+  labelKey: meta.labelKey,
+  icon: NAV_ICONS[meta.icon],
+  highlight: meta.highlight,
+  permission: meta.permission,
+  adminOnly: meta.adminOnly,
+}))
+
+/** Deriviran iz registerja — itemIds = člani po groupOrder (drift-gate pin) */
+export const navGroups: NavGroup[] = MODULE_GROUPS.map((g) => ({
+  id: g.id,
+  label: g.label,
+  labelKey: g.labelKey,
+  itemIds: MODULE_REGISTRY
+    .filter((m) => m.group === g.id)
+    .sort((a, b) => (a.groupOrder ?? REG_INDEX.get(a.id) ?? 0) - (b.groupOrder ?? REG_INDEX.get(b.id) ?? 0))
+    .map((m) => m.id),
+}))

@@ -38,6 +38,10 @@
 // ============================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// R174 IA: navItems je deriviran iz registerja — modulni fs-pin prenesen na
+// centralni register (vir resnice) + runtime navGroups red (groupOrder sodba)
+import { MODULE_REGISTRY } from '@/lib/modules/registry'
+import { navGroups } from '@/components/pos/sidebar/navItems'
 import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -598,15 +602,16 @@ describe('DataPortabilityModule download tok (R147-c)', () => {
 // ============================================
 
 describe('Registracija modula (fs-pin, R147-c)', () => {
-  it('navItems: vnos data-portability (adminOnly, DatabaseBackup) + SISTEM skupina + module-registry', () => {
-    const navSrc = readFileSync(join(process.cwd(), 'src', 'components', 'pos', 'sidebar', 'navItems.ts'), 'utf8')
-    const entryLine = navSrc.split('\n').find((l) => l.includes("id: 'data-portability'"))
-    expect(entryLine, 'navItems vnos data-portability NI na disku').toBeDefined()
-    expect(entryLine).toContain("labelKey: 'nav.dataPortability'")
-    expect(entryLine).toContain('DatabaseBackup')
-    expect(entryLine).toContain('adminOnly: true')
-    // SISTEM skupina vsebuje 'data-portability' (poleg devices)
-    expect(navSrc).toMatch(/'configuration', 'settings', 'locations', 'devices', 'data-portability'/)
+  it('register: vnos data-portability (adminOnly, DatabaseBackup, desktop sodba) + SISTEM skupina + module-registry', () => {
+    // R174 IA: pin prenesen z navItems (deriviran) na register (vir resnice)
+    const meta = MODULE_REGISTRY.find((m) => m.id === 'data-portability')
+    expect(meta, 'register vnos data-portability').toBeDefined()
+    expect(meta?.labelKey).toBe('nav.dataPortability')
+    expect(meta?.icon).toBe('DatabaseBackup')
+    expect(meta?.adminOnly).toBe(true)
+    // SISTEM skupina: 'data-portability' takoj za 'devices' (groupOrder 5, kontrakt R147-c)
+    const systemIds = navGroups.find((g) => g.id === 'system')?.itemIds ?? []
+    expect(systemIds.indexOf('data-portability')).toBe(systemIds.indexOf('devices') + 1)
 
     const registrySrc = readFileSync(join(process.cwd(), 'src', 'app', 'components', 'module-registry.tsx'), 'utf8')
     expect(registrySrc).toContain("'data-portability': DataPortabilityModule,")

@@ -39,6 +39,9 @@
 // ============================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// R174 IA: navItems je deriviran iz registerja — pin prenesen na register
+import { MODULE_REGISTRY } from '@/lib/modules/registry'
+import { navGroups } from '@/components/pos/sidebar/navItems'
 import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -646,16 +649,17 @@ describe('Pure helperji + query keys (R149-c)', () => {
 // ============================================
 
 describe('Registracija modula (fs-pin, R149-c)', () => {
-  it('navItems: vnos advanced-analytics v \'analytics\' grupi (za reports), permission view_reports, NI adminOnly', () => {
-    const navSrc = readFileSync(join(process.cwd(), 'src', 'components', 'pos', 'sidebar', 'navItems.ts'), 'utf8')
-    const entryLine = navSrc.split('\n').find((l) => l.includes("id: 'advanced-analytics'"))
-    expect(entryLine, 'navItems vnos advanced-analytics NI na disku').toBeDefined()
-    expect(entryLine).toContain("labelKey: 'nav.advancedAnalytics'")
-    expect(entryLine).toContain('TrendingUp')
-    expect(entryLine).toContain("permission: 'view_reports'")
-    expect(entryLine).not.toContain('adminOnly')
-    // 'analytics' navGroup: takoj za 'reports' (kontrakt R149-a)
-    expect(navSrc).toMatch(/'briefing', 'dashboard', 'reports', 'advanced-analytics'/)
+  it('register: vnos advanced-analytics v \'analytics\' grupi (za reports), permission view_reports, NI adminOnly', () => {
+    // R174 IA: pin prenesen z navItems (deriviran) na register (vir resnice)
+    const meta = MODULE_REGISTRY.find((m) => m.id === 'advanced-analytics')
+    expect(meta, 'register vnos advanced-analytics').toBeDefined()
+    expect(meta?.labelKey).toBe('nav.advancedAnalytics')
+    expect(meta?.icon).toBe('TrendingUp')
+    expect(meta?.permission).toBe('view_reports')
+    expect(meta?.adminOnly).toBeUndefined()
+    // 'analytics' grupa: takoj za 'reports' (kontrakt R149-a; R174 groupOrder sodba)
+    const analyticsIds = navGroups.find((g) => g.id === 'analytics')?.itemIds ?? []
+    expect(analyticsIds.indexOf('advanced-analytics')).toBe(analyticsIds.indexOf('reports') + 1)
   })
 
   it('module-registry: dynamic import (ssr:false + loadingFallback) + map vnos', () => {

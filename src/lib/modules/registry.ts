@@ -18,15 +18,24 @@
 //       · priority 'core'  = Golden Path semena (epic #144 §7) — 12 modulov
 //       · priority 'long-tail' = specialistični moduli — 14
 //       · domain = groba izpeljava iz skupine (DOMAIN_BY_GROUP)
-//       · mobile = true za vse (per-module pregled = deferred, IA runda
-//         P0 korak 4 — flag obstaja, sodba še ni fiksirana)
 //       · standaloneRoute = samo tam, kjer obstaja standalone stran (/driver)
 //   - PURE LIB: brez client-direktive, brez react in lucide importov (test
 //     to uveljavlja) — register je varen za client, server in tsx skripte.
 //
-// Preklapljanje konzumentov NA register (Sidebar/palette iz registerja,
-// KioskBarParts.moduleConfig divergenca, NavGroup.label i18n) = IA runda
-// (P0 korak 4) — ta register je za zdaj verify-only vir resnice.
+// IA RUNDI (P0 korak 4, R174) — register postane POGON (ne samo verify):
+//   - navItems/navGroups (src/components/pos/sidebar/navItems.ts) sta
+//     DERIVIRANA iz registerja (adapter: NAV_ICONS string→lucide komponenta);
+//     Sidebar in CommandPalette ostajata klicatelja navItems — vir je register.
+//   - groupOrder = intra-group render red znotraj skupine (navGroups.itemIds
+//     sodba, PINANO z drift-gate element-wise); default = vrstni red v
+//     registerju (= navItems flat red). All-or-none pravilo per grupa.
+//   - highlight = poseben aktivni stil (SidebarNav); sodba: samo 'orders'.
+//   - mobile SODBA fiksirana (prej true za vse): 12 back-office modulov
+//     (audit-log, conflicts, offline-queue, outbox, fraud-detection, webhooks,
+//     integrations, subscription, multi-location, data-portability, compliance,
+//     ghost-kitchen) = false — invarianta: mobile:false ⇒ adminOnly || long-tail.
+//   - NavGroup.label i18n: MODULE_GROUPS.labelKey (nav.group.*) ×5 jezikov;
+//     SidebarNav renderira t(labelKey) — SL label ostane fallback/drift-pin.
 // ============================================
 
 export type ModuleGroupId =
@@ -63,23 +72,31 @@ export interface ModuleAccessUser {
 
 export interface ModuleGroup {
   id: ModuleGroupId
-  /** Hardcoded SL label — ≡ navGroups.label (i18n = deferred, IA runda) */
+  /** Hardcoded SL label — ≡ navGroups.label (drift-gate pin, fallback) */
   label: string
+  /** i18n ključ skupinske glave (nav.group.* — IA runda R174, ×5 jezikov) */
+  labelKey: string
 }
 
 export interface ModuleMeta {
   id: string
   /** i18n ključ (≡ navItems.labelKey; nav.* ×5 jezikov) */
   labelKey: string
-  /** lucide-react ikona IME (≡ navItems.icon; string, ne komponenta — pure lib) */
+  /** lucide-react ikona IME (≡ NAV_ICONS ključ v navItems.ts; pure lib) */
   icon: string
   group: ModuleGroupId
   /** izpeljano iz DOMAIN_BY_GROUP pri izgradni MODULE_REGISTRY */
   domain: ModuleDomain
   permission?: ModulePermission
   adminOnly?: boolean
-  /** defaults true — per-module sodba deferred (IA runda, P0 korak 4) */
+  /** IA sodba (R174): true = operativno na mobilnem/tablici; false =
+   *  back-office desktop sodba (12 modulov; invarianta v drift-gate) */
   mobile: boolean
+  /** intra-group render red (navGroups.itemIds sodba); default = register red.
+   *  All-or-none per grupa (drift-gate test uveljavlja). */
+  groupOrder?: number
+  /** Poseben aktivni stil (SidebarNav); sodba: samo 'orders' (drift-gate pin) */
+  highlight?: boolean
   priority: ModulePriority
   /** povezani moduli (cilji MORAJO obstajati — drift-gate test) */
   relatedModules: string[]
@@ -88,16 +105,16 @@ export interface ModuleMeta {
 }
 
 /** RAW vnos = ModuleMeta brez izpeljanih polj (domain, mobile) */
-type RawModule = Omit<ModuleMeta, 'domain' | 'mobile'>
+type RawModule = Omit<ModuleMeta, 'domain' | 'mobile'> & { mobile?: boolean }
 
 export const MODULE_GROUPS: readonly ModuleGroup[] = [
-  { id: 'sales', label: 'Prodaja' },
-  { id: 'cash', label: 'Blagajna' },
-  { id: 'guests', label: 'Gosti & CRM' },
-  { id: 'menu', label: 'Meni & zaloge' },
-  { id: 'staff', label: 'Osebje' },
-  { id: 'analytics', label: 'Analitika' },
-  { id: 'system', label: 'Sistem' },
+  { id: 'sales', label: 'Prodaja', labelKey: 'nav.group.sales' },
+  { id: 'cash', label: 'Blagajna', labelKey: 'nav.group.cash' },
+  { id: 'guests', label: 'Gosti & CRM', labelKey: 'nav.group.guests' },
+  { id: 'menu', label: 'Meni & zaloge', labelKey: 'nav.group.menu' },
+  { id: 'staff', label: 'Osebje', labelKey: 'nav.group.staff' },
+  { id: 'analytics', label: 'Analitika', labelKey: 'nav.group.analytics' },
+  { id: 'system', label: 'Sistem', labelKey: 'nav.group.system' },
 ] as const
 
 /** Groba domena = izpeljava iz skupine (dokumentirana sodba, R173) */
@@ -114,90 +131,92 @@ export const DOMAIN_BY_GROUP: Record<ModuleGroupId, ModuleDomain> = {
 /**
  * 75 modulov — VRSTNI RED ≡ navItems (drift-gate: element-wise ≡).
  * Vrstica = EN modul (§6: en vir resnice za metadata).
+ * groupOrder = intra-group render red (sodba navGroups.itemIds, R174);
+ * grupe sales/cash/guests so brez (default = register red ≡ render red).
  */
 const RAW_MODULES: readonly RawModule[] = [
-  { id: 'orders', labelKey: 'nav.sales', icon: 'ShoppingCart', group: 'sales', permission: 'take_orders', priority: 'core', relatedModules: ['kitchen', 'tables', 'floor-plan'] },
+  { id: 'orders', labelKey: 'nav.sales', icon: 'ShoppingCart', group: 'sales', permission: 'take_orders', highlight: true, priority: 'core', relatedModules: ['kitchen', 'tables', 'floor-plan'] },
   { id: 'kitchen', labelKey: 'nav.kitchen', icon: 'ChefHat', group: 'sales', permission: 'take_orders', priority: 'core', relatedModules: ['kitchen-stations', 'kitchen-prep', 'orders'] },
   { id: 'floor-plan', labelKey: 'nav.floor-plan', icon: 'LayoutGrid', group: 'sales', permission: 'take_orders', priority: 'core', relatedModules: ['tables', 'orders'] },
   { id: 'tables', labelKey: 'nav.tables', icon: 'BarChartBig', group: 'sales', permission: 'take_orders', priority: 'core', relatedModules: ['floor-plan', 'orders', 'reservations'] },
   { id: 'waitlist', labelKey: 'nav.waitlistFull', icon: 'ClipboardList', group: 'sales', permission: 'take_orders', priority: 'secondary', relatedModules: ['reservations', 'tables'] },
   { id: 'cash-register', labelKey: 'nav.cash-register', icon: 'Wallet', group: 'cash', permission: 'manage_cash', priority: 'core', relatedModules: ['z-report', 'end-of-day', 'wallet-payment'] },
   { id: 'shifts', labelKey: 'nav.shifts', icon: 'CalendarDays', group: 'cash', permission: 'manage_cash', priority: 'secondary', relatedModules: ['staff-schedule', 'shift-overview'] },
-  { id: 'staff-schedule', labelKey: 'nav.staffSchedule', icon: 'CalendarClock', group: 'staff', permission: 'manage_employees', priority: 'secondary', relatedModules: ['shift-overview', 'employees', 'shifts'] },
+  { id: 'staff-schedule', labelKey: 'nav.staffSchedule', icon: 'CalendarClock', group: 'staff', groupOrder: 2, permission: 'manage_employees', priority: 'secondary', relatedModules: ['shift-overview', 'employees', 'shifts'] },
   { id: 'course-pacing', labelKey: 'nav.coursePacing', icon: 'Layers', group: 'sales', permission: 'take_orders', priority: 'secondary', relatedModules: ['orders', 'kitchen'] },
-  { id: 'dashboard', labelKey: 'nav.dashboard', icon: 'LayoutDashboard', group: 'analytics', permission: 'view_reports', priority: 'core', relatedModules: ['reports', 'briefing'] },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: 'LayoutDashboard', group: 'analytics', groupOrder: 2, permission: 'view_reports', priority: 'core', relatedModules: ['reports', 'briefing'] },
   { id: 'guests', labelKey: 'nav.guestCRM', icon: 'UserCircle', group: 'guests', permission: 'take_orders', priority: 'secondary', relatedModules: ['customer-timeline', 'feedback', 'loyalty'] },
-  { id: 'menu', labelKey: 'nav.menu', icon: 'UtensilsCrossed', group: 'menu', adminOnly: true, priority: 'core', relatedModules: ['recipes', 'nutrition', 'allergen-matrix'] },
-  { id: 'food-cost', labelKey: 'nav.food-cost', icon: 'Calculator', group: 'menu', adminOnly: true, priority: 'long-tail', relatedModules: ['menu', 'recipes'] },
-  { id: 'inventory', labelKey: 'nav.inventory', icon: 'Package', group: 'menu', adminOnly: true, priority: 'core', relatedModules: ['inventory-alerts', 'suppliers', 'waste-tracker'] },
-  { id: 'suppliers', labelKey: 'nav.suppliers', icon: 'Factory', group: 'menu', adminOnly: true, priority: 'secondary', relatedModules: ['vendor-scorecard', 'reorder-center'] },
-  { id: 'reorder-center', labelKey: 'nav.reorderCenter', icon: 'ClipboardList', group: 'menu', adminOnly: true, priority: 'secondary', relatedModules: ['inventory-alerts', 'suppliers'] },
-  { id: 'ai-forecast', labelKey: 'nav.ai-forecast', icon: 'Brain', group: 'analytics', adminOnly: true, priority: 'long-tail', relatedModules: ['advanced-analytics', 'ai-recommendations'] },
-  { id: 'recipes', labelKey: 'nav.recipes', icon: 'BookOpen', group: 'menu', adminOnly: true, priority: 'secondary', relatedModules: ['recipe-scaling', 'food-cost', 'menu'] },
+  { id: 'menu', labelKey: 'nav.menu', icon: 'UtensilsCrossed', group: 'menu', groupOrder: 1, adminOnly: true, priority: 'core', relatedModules: ['recipes', 'nutrition', 'allergen-matrix'] },
+  { id: 'food-cost', labelKey: 'nav.food-cost', icon: 'Calculator', group: 'menu', groupOrder: 4, adminOnly: true, priority: 'long-tail', relatedModules: ['menu', 'recipes'] },
+  { id: 'inventory', labelKey: 'nav.inventory', icon: 'Package', group: 'menu', groupOrder: 2, adminOnly: true, priority: 'core', relatedModules: ['inventory-alerts', 'suppliers', 'waste-tracker'] },
+  { id: 'suppliers', labelKey: 'nav.suppliers', icon: 'Factory', group: 'menu', groupOrder: 7, adminOnly: true, priority: 'secondary', relatedModules: ['vendor-scorecard', 'reorder-center'] },
+  { id: 'reorder-center', labelKey: 'nav.reorderCenter', icon: 'ClipboardList', group: 'menu', groupOrder: 8, adminOnly: true, priority: 'secondary', relatedModules: ['inventory-alerts', 'suppliers'] },
+  { id: 'ai-forecast', labelKey: 'nav.ai-forecast', icon: 'Brain', group: 'analytics', groupOrder: 11, adminOnly: true, priority: 'long-tail', relatedModules: ['advanced-analytics', 'ai-recommendations'] },
+  { id: 'recipes', labelKey: 'nav.recipes', icon: 'BookOpen', group: 'menu', groupOrder: 5, adminOnly: true, priority: 'secondary', relatedModules: ['recipe-scaling', 'food-cost', 'menu'] },
   { id: 'reservations', labelKey: 'nav.reservations', icon: 'Calendar', group: 'guests', permission: 'take_orders', priority: 'core', relatedModules: ['tables', 'waitlist', 'table-reservation-sync'] },
-  { id: 'staff-performance', labelKey: 'nav.staffPerformance', icon: 'Trophy', group: 'staff', permission: 'view_reports', priority: 'secondary', relatedModules: ['labor-reports', 'employees'] },
+  { id: 'staff-performance', labelKey: 'nav.staffPerformance', icon: 'Trophy', group: 'staff', groupOrder: 5, permission: 'view_reports', priority: 'secondary', relatedModules: ['labor-reports', 'employees'] },
   { id: 'kitchen-prep', labelKey: 'nav.kitchenPrep', icon: 'ChefHat', group: 'sales', permission: 'take_orders', priority: 'secondary', relatedModules: ['kitchen', 'kitchen-stations'] },
-  { id: 'notifications', labelKey: 'nav.notifications', icon: 'Bell', group: 'system', permission: 'manage_cash', priority: 'secondary', relatedModules: ['settings'] },
-  { id: 'allergen-matrix', labelKey: 'nav.allergenMatrix', icon: 'ShieldAlert', group: 'menu', adminOnly: true, priority: 'secondary', relatedModules: ['menu', 'nutrition'] },
-  { id: 'table-turnover', labelKey: 'nav.tableTurnover', icon: 'LayoutGrid', group: 'analytics', permission: 'view_reports', priority: 'long-tail', relatedModules: ['reports'] },
-  { id: 'expenses', labelKey: 'nav.expenses', icon: 'Receipt', group: 'analytics', permission: 'view_reports', priority: 'secondary', relatedModules: ['reports'] },
-  { id: 'daily-checklist', labelKey: 'nav.dailyChecklist', icon: 'ClipboardCheck', group: 'system', permission: 'take_orders', priority: 'secondary', relatedModules: ['haccp'] },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: 'Bell', group: 'system', groupOrder: 18, permission: 'manage_cash', priority: 'secondary', relatedModules: ['settings'] },
+  { id: 'allergen-matrix', labelKey: 'nav.allergenMatrix', icon: 'ShieldAlert', group: 'menu', groupOrder: 10, adminOnly: true, priority: 'secondary', relatedModules: ['menu', 'nutrition'] },
+  { id: 'table-turnover', labelKey: 'nav.tableTurnover', icon: 'LayoutGrid', group: 'analytics', groupOrder: 6, permission: 'view_reports', priority: 'long-tail', relatedModules: ['reports'] },
+  { id: 'expenses', labelKey: 'nav.expenses', icon: 'Receipt', group: 'analytics', groupOrder: 7, permission: 'view_reports', priority: 'secondary', relatedModules: ['reports'] },
+  { id: 'daily-checklist', labelKey: 'nav.dailyChecklist', icon: 'ClipboardCheck', group: 'system', groupOrder: 20, permission: 'take_orders', priority: 'secondary', relatedModules: ['haccp'] },
   { id: 'end-of-day', labelKey: 'nav.endOfDay', icon: 'FileText', group: 'cash', permission: 'manage_cash', priority: 'secondary', relatedModules: ['z-report', 'cash-register'] },
-  { id: 'haccp', labelKey: 'nav.haccp', icon: 'ShieldCheck', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['compliance'] },
-  { id: 'employees', labelKey: 'nav.employees', icon: 'Users', group: 'staff', permission: 'manage_employees', priority: 'core', relatedModules: ['staff-schedule', 'tip-manager', 'staff-performance'] },
-  { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: 'Target', group: 'analytics', adminOnly: true, priority: 'long-tail', relatedModules: ['menu', 'food-cost'] },
+  { id: 'haccp', labelKey: 'nav.haccp', icon: 'ShieldCheck', group: 'system', groupOrder: 13, adminOnly: true, priority: 'secondary', relatedModules: ['compliance'] },
+  { id: 'employees', labelKey: 'nav.employees', icon: 'Users', group: 'staff', groupOrder: 1, permission: 'manage_employees', priority: 'core', relatedModules: ['staff-schedule', 'tip-manager', 'staff-performance'] },
+  { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: 'Target', group: 'analytics', groupOrder: 5, adminOnly: true, priority: 'long-tail', relatedModules: ['menu', 'food-cost'] },
   { id: 'feedback', labelKey: 'nav.feedback', icon: 'MessageSquare', group: 'guests', permission: 'take_orders', priority: 'secondary', relatedModules: ['guests', 'customer-timeline'] },
-  { id: 'reports', labelKey: 'nav.reports', icon: 'BarChart3', group: 'analytics', permission: 'view_reports', priority: 'core', relatedModules: ['dashboard', 'tax-report', 'profit-loss'] },
-  { id: 'advanced-analytics', labelKey: 'nav.advancedAnalytics', icon: 'TrendingUp', group: 'analytics', permission: 'view_reports', priority: 'long-tail', relatedModules: ['reports', 'ai-forecast'] },
-  { id: 'briefing', labelKey: 'nav.briefing', icon: 'Sunrise', group: 'analytics', permission: 'view_reports', priority: 'secondary', relatedModules: ['dashboard', 'reports'] },
-  { id: 'devices', labelKey: 'nav.devices', icon: 'MonitorSmartphone', group: 'system', permission: 'view_reports', priority: 'long-tail', relatedModules: ['locations'] },
-  { id: 'data-portability', labelKey: 'nav.dataPortability', icon: 'DatabaseBackup', group: 'system', adminOnly: true, priority: 'long-tail', relatedModules: ['settings'] },
-  { id: 'configuration', labelKey: 'nav.configuration', icon: 'SlidersHorizontal', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['settings', 'locations'] },
+  { id: 'reports', labelKey: 'nav.reports', icon: 'BarChart3', group: 'analytics', groupOrder: 3, permission: 'view_reports', priority: 'core', relatedModules: ['dashboard', 'tax-report', 'profit-loss'] },
+  { id: 'advanced-analytics', labelKey: 'nav.advancedAnalytics', icon: 'TrendingUp', group: 'analytics', groupOrder: 4, permission: 'view_reports', priority: 'long-tail', relatedModules: ['reports', 'ai-forecast'] },
+  { id: 'briefing', labelKey: 'nav.briefing', icon: 'Sunrise', group: 'analytics', groupOrder: 1, permission: 'view_reports', priority: 'secondary', relatedModules: ['dashboard', 'reports'] },
+  { id: 'devices', labelKey: 'nav.devices', icon: 'MonitorSmartphone', group: 'system', groupOrder: 4, permission: 'view_reports', priority: 'long-tail', relatedModules: ['locations'] },
+  { id: 'data-portability', labelKey: 'nav.dataPortability', icon: 'DatabaseBackup', group: 'system', groupOrder: 5, adminOnly: true, mobile: false, priority: 'long-tail', relatedModules: ['settings'] },
+  { id: 'configuration', labelKey: 'nav.configuration', icon: 'SlidersHorizontal', group: 'system', groupOrder: 1, adminOnly: true, priority: 'secondary', relatedModules: ['settings', 'locations'] },
   { id: 'delivery', labelKey: 'nav.delivery', icon: 'Truck', group: 'sales', permission: 'take_orders', priority: 'secondary', relatedModules: ['delivery-tracking', 'driver'] },
   { id: 'delivery-tracking', labelKey: 'nav.deliveryTracking', icon: 'Navigation', group: 'sales', permission: 'take_orders', priority: 'secondary', relatedModules: ['delivery', 'driver'] },
   { id: 'driver', labelKey: 'nav.driver', icon: 'Bike', group: 'sales', permission: 'take_orders', priority: 'secondary', relatedModules: ['delivery', 'delivery-tracking'], standaloneRoute: '/driver' },
   { id: 'z-report', labelKey: 'nav.zReport', icon: 'FileText', group: 'cash', permission: 'manage_cash', priority: 'secondary', relatedModules: ['end-of-day', 'cash-register'] },
-  { id: 'tip-manager', labelKey: 'nav.tipManager', icon: 'HandCoins', group: 'staff', permission: 'manage_employees', priority: 'secondary', relatedModules: ['employees'] },
+  { id: 'tip-manager', labelKey: 'nav.tipManager', icon: 'HandCoins', group: 'staff', groupOrder: 4, permission: 'manage_employees', priority: 'secondary', relatedModules: ['employees'] },
   { id: 'wait-time', labelKey: 'nav.waitTime', icon: 'Timer', group: 'sales', permission: 'take_orders', priority: 'secondary', relatedModules: ['waitlist'] },
-  { id: 'multi-location', labelKey: 'nav.multiLocation', icon: 'Store', group: 'system', adminOnly: true, priority: 'long-tail', relatedModules: ['locations'] },
-  { id: 'ai-recommendations', labelKey: 'nav.aiRecommendations', icon: 'Brain', group: 'analytics', adminOnly: true, priority: 'long-tail', relatedModules: ['ai-forecast'] },
-  { id: 'nutrition', labelKey: 'nav.nutrition', icon: 'ShieldCheck', group: 'menu', adminOnly: true, priority: 'long-tail', relatedModules: ['menu', 'allergen-matrix'] },
+  { id: 'multi-location', labelKey: 'nav.multiLocation', icon: 'Store', group: 'system', groupOrder: 6, adminOnly: true, mobile: false, priority: 'long-tail', relatedModules: ['locations'] },
+  { id: 'ai-recommendations', labelKey: 'nav.aiRecommendations', icon: 'Brain', group: 'analytics', groupOrder: 12, adminOnly: true, priority: 'long-tail', relatedModules: ['ai-forecast'] },
+  { id: 'nutrition', labelKey: 'nav.nutrition', icon: 'ShieldCheck', group: 'menu', groupOrder: 11, adminOnly: true, priority: 'long-tail', relatedModules: ['menu', 'allergen-matrix'] },
   { id: 'gift-cards', labelKey: 'nav.gift-cards', icon: 'CreditCard', group: 'guests', permission: 'take_orders', priority: 'secondary', relatedModules: ['loyalty'] },
   { id: 'loyalty', labelKey: 'nav.loyalty', icon: 'Award', group: 'guests', permission: 'take_orders', priority: 'secondary', relatedModules: ['gift-cards', 'guests'] },
-  { id: 'printers', labelKey: 'nav.printers', icon: 'Printer', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['settings'] },
-  { id: 'webhooks', labelKey: 'nav.webhooks', icon: 'Webhook', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['integrations'] },
-  { id: 'integrations', labelKey: 'nav.integrations', icon: 'Plug', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['webhooks'] },
-  { id: 'furs', labelKey: 'nav.furs', icon: 'ShieldCheck', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['tax-report', 'settings'] },
-  { id: 'locations', labelKey: 'nav.locations', icon: 'MapPin', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['multi-location', 'devices', 'configuration'] },
-  { id: 'subscription', labelKey: 'nav.subscription', icon: 'CreditCard', group: 'system', adminOnly: true, priority: 'long-tail', relatedModules: ['settings'] },
-  { id: 'inventory-alerts', labelKey: 'nav.inventoryAlerts', icon: 'BellRing', group: 'menu', adminOnly: true, priority: 'secondary', relatedModules: ['inventory', 'reorder-center'] },
+  { id: 'printers', labelKey: 'nav.printers', icon: 'Printer', group: 'system', groupOrder: 7, adminOnly: true, priority: 'secondary', relatedModules: ['settings'] },
+  { id: 'webhooks', labelKey: 'nav.webhooks', icon: 'Webhook', group: 'system', groupOrder: 9, adminOnly: true, mobile: false, priority: 'secondary', relatedModules: ['integrations'] },
+  { id: 'integrations', labelKey: 'nav.integrations', icon: 'Plug', group: 'system', groupOrder: 8, adminOnly: true, mobile: false, priority: 'secondary', relatedModules: ['webhooks'] },
+  { id: 'furs', labelKey: 'nav.furs', icon: 'ShieldCheck', group: 'system', groupOrder: 10, adminOnly: true, priority: 'secondary', relatedModules: ['tax-report', 'settings'] },
+  { id: 'locations', labelKey: 'nav.locations', icon: 'MapPin', group: 'system', groupOrder: 3, adminOnly: true, priority: 'secondary', relatedModules: ['multi-location', 'devices', 'configuration'] },
+  { id: 'subscription', labelKey: 'nav.subscription', icon: 'CreditCard', group: 'system', groupOrder: 11, adminOnly: true, mobile: false, priority: 'long-tail', relatedModules: ['settings'] },
+  { id: 'inventory-alerts', labelKey: 'nav.inventoryAlerts', icon: 'BellRing', group: 'menu', groupOrder: 3, adminOnly: true, priority: 'secondary', relatedModules: ['inventory', 'reorder-center'] },
   { id: 'customer-timeline', labelKey: 'nav.customerTimeline', icon: 'UserCircle', group: 'guests', permission: 'take_orders', priority: 'secondary', relatedModules: ['guests', 'feedback'] },
-  { id: 'shift-overview', labelKey: 'nav.shiftOverview', icon: 'Activity', group: 'staff', permission: 'manage_employees', priority: 'secondary', relatedModules: ['staff-schedule', 'labor-reports'] },
-  { id: 'profit-loss', labelKey: 'nav.profitLoss', icon: 'PieChart', group: 'analytics', permission: 'view_reports', priority: 'secondary', relatedModules: ['reports', 'expenses', 'tax-report'] },
+  { id: 'shift-overview', labelKey: 'nav.shiftOverview', icon: 'Activity', group: 'staff', groupOrder: 3, permission: 'manage_employees', priority: 'secondary', relatedModules: ['staff-schedule', 'labor-reports'] },
+  { id: 'profit-loss', labelKey: 'nav.profitLoss', icon: 'PieChart', group: 'analytics', groupOrder: 8, permission: 'view_reports', priority: 'secondary', relatedModules: ['reports', 'expenses', 'tax-report'] },
   { id: 'table-reservation-sync', labelKey: 'nav.tableReservationSync', icon: 'Table2', group: 'guests', permission: 'take_orders', priority: 'secondary', relatedModules: ['reservations'] },
   { id: 'kitchen-stations', labelKey: 'nav.kitchenStations', icon: 'CookingPot', group: 'sales', permission: 'take_orders', priority: 'secondary', relatedModules: ['kitchen', 'kitchen-prep'] },
-  { id: 'tax-report', labelKey: 'nav.taxReport', icon: 'Scale', group: 'analytics', permission: 'view_reports', priority: 'secondary', relatedModules: ['reports', 'profit-loss'] },
-  { id: 'vendor-scorecard', labelKey: 'nav.vendorScorecard', icon: 'Star', group: 'menu', adminOnly: true, priority: 'long-tail', relatedModules: ['suppliers'] },
+  { id: 'tax-report', labelKey: 'nav.taxReport', icon: 'Scale', group: 'analytics', groupOrder: 9, permission: 'view_reports', priority: 'secondary', relatedModules: ['reports', 'profit-loss'] },
+  { id: 'vendor-scorecard', labelKey: 'nav.vendorScorecard', icon: 'Star', group: 'menu', groupOrder: 12, adminOnly: true, priority: 'long-tail', relatedModules: ['suppliers'] },
   { id: 'order-bump', labelKey: 'nav.orderBump', icon: 'Sparkles', group: 'sales', permission: 'take_orders', priority: 'secondary', relatedModules: ['orders'] },
-  { id: 'waste-tracker', labelKey: 'nav.wasteTracker', icon: 'Trash2', group: 'menu', adminOnly: true, priority: 'secondary', relatedModules: ['inventory'] },
-  { id: 'recipe-scaling', labelKey: 'nav.recipeScaling', icon: 'Scale3d', group: 'menu', adminOnly: true, priority: 'long-tail', relatedModules: ['recipes'] },
-  { id: 'compliance', labelKey: 'nav.compliance', icon: 'ShieldCheck', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['haccp', 'audit-log'] },
-  { id: 'audit-log', labelKey: 'nav.auditLog', icon: 'ShieldAlert', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['compliance'] },
-  { id: 'outbox', labelKey: 'nav.outbox', icon: 'Activity', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['conflicts', 'offline-queue'] },
-  { id: 'ghost-kitchen', labelKey: 'nav.ghostKitchen', icon: 'ChefHat', group: 'analytics', permission: 'view_reports', priority: 'long-tail', relatedModules: ['menu', 'orders'] },
-  { id: 'conflicts', labelKey: 'nav.conflicts', icon: 'GitBranch', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['offline-queue', 'outbox'] },
-  { id: 'offline-queue', labelKey: 'nav.offlineQueue', icon: 'CloudOff', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['conflicts', 'outbox'] },
+  { id: 'waste-tracker', labelKey: 'nav.wasteTracker', icon: 'Trash2', group: 'menu', groupOrder: 9, adminOnly: true, priority: 'secondary', relatedModules: ['inventory'] },
+  { id: 'recipe-scaling', labelKey: 'nav.recipeScaling', icon: 'Scale3d', group: 'menu', groupOrder: 6, adminOnly: true, priority: 'long-tail', relatedModules: ['recipes'] },
+  { id: 'compliance', labelKey: 'nav.compliance', icon: 'ShieldCheck', group: 'system', groupOrder: 12, adminOnly: true, mobile: false, priority: 'secondary', relatedModules: ['haccp', 'audit-log'] },
+  { id: 'audit-log', labelKey: 'nav.auditLog', icon: 'ShieldAlert', group: 'system', groupOrder: 14, adminOnly: true, mobile: false, priority: 'secondary', relatedModules: ['compliance'] },
+  { id: 'outbox', labelKey: 'nav.outbox', icon: 'Activity', group: 'system', groupOrder: 15, adminOnly: true, mobile: false, priority: 'secondary', relatedModules: ['conflicts', 'offline-queue'] },
+  { id: 'ghost-kitchen', labelKey: 'nav.ghostKitchen', icon: 'ChefHat', group: 'analytics', groupOrder: 10, permission: 'view_reports', mobile: false, priority: 'long-tail', relatedModules: ['menu', 'orders'] },
+  { id: 'conflicts', labelKey: 'nav.conflicts', icon: 'GitBranch', group: 'system', groupOrder: 16, adminOnly: true, mobile: false, priority: 'secondary', relatedModules: ['offline-queue', 'outbox'] },
+  { id: 'offline-queue', labelKey: 'nav.offlineQueue', icon: 'CloudOff', group: 'system', groupOrder: 17, adminOnly: true, mobile: false, priority: 'secondary', relatedModules: ['conflicts', 'outbox'] },
   { id: 'wallet-payment', labelKey: 'nav.walletPayment', icon: 'Nfc', group: 'cash', permission: 'manage_cash', priority: 'secondary', relatedModules: ['cash-register'] },
-  { id: 'fraud-detection', labelKey: 'nav.fraudDetection', icon: 'ShieldAlert', group: 'system', adminOnly: true, priority: 'secondary', relatedModules: ['audit-log'] },
-  { id: 'labor-reports', labelKey: 'nav.laborReports', icon: 'Calendar', group: 'staff', permission: 'view_reports', priority: 'secondary', relatedModules: ['staff-performance', 'shift-overview'] },
-  { id: 'settings', labelKey: 'nav.settings', icon: 'Settings', group: 'system', adminOnly: true, priority: 'core', relatedModules: ['configuration', 'printers', 'subscription'] },
+  { id: 'fraud-detection', labelKey: 'nav.fraudDetection', icon: 'ShieldAlert', group: 'system', groupOrder: 19, adminOnly: true, mobile: false, priority: 'secondary', relatedModules: ['audit-log'] },
+  { id: 'labor-reports', labelKey: 'nav.laborReports', icon: 'Calendar', group: 'staff', groupOrder: 6, permission: 'view_reports', priority: 'secondary', relatedModules: ['staff-performance', 'shift-overview'] },
+  { id: 'settings', labelKey: 'nav.settings', icon: 'Settings', group: 'system', groupOrder: 2, adminOnly: true, priority: 'core', relatedModules: ['configuration', 'printers', 'subscription'] },
 ]
 
 /** Polni register (izpeljani domain + mobile) — VRSTNI RED ≡ navItems */
 export const MODULE_REGISTRY: readonly ModuleMeta[] = RAW_MODULES.map((m) => ({
   ...m,
   domain: DOMAIN_BY_GROUP[m.group],
-  mobile: true, // documented default — per-module pregled deferred (IA runda)
+  mobile: m.mobile ?? true, // R174 sodba: 12 back-office modulov eksplicitno false
 }))
 
 /** ID-ji v vrstnem redu registerja (≡ navItems vrstni red) */

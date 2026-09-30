@@ -31,9 +31,10 @@
     "navigationModulesSource": "src/lib/i18n/navigation/*.ts (nav.* ključi, 5 jezikov sl/en/it/hr/de)",
     "workModes": ["POS", "waiter", "kds", "kiosk", "qr", "qr-menu", "driver", "online-ordering", "reservations"],
     "moduleRegistry": "src/app/components/module-registry.tsx (lazy-loaded component map)",
-    "moduleRegistrySourceOfTruth": "src/lib/modules/registry.ts (75 modulov × §6 metadata: group/domain/access/priority/relatedModules — epic #144 P0 korak 3, R173)",
-    "moduleRegistryDriftGate": "tests/unit/lib/module-registry.test.ts (29 testov: register ≡ navItems ≡ moduleComponents ≡ i18n ×5 jezikov; canAccessModule pariteta 8 uporabniških likov × 75 modulov)",
-    "moduleInventoryDoc": "docs/MODULE-INVENTORY.md (generirano prek 'bun run inventory' — ročno urejanje ni dovoljeno)"
+    "moduleRegistrySourceOfTruth": "src/lib/modules/registry.ts (75 modulov × §6 metadata: group/domain/access/priority/relatedModules/mobile/groupOrder/highlight — epic #144 P0 korak 3 R173 + IA runda R174)",
+    "moduleRegistryDriftGate": "tests/unit/lib/module-registry.test.ts (35 testov: register ≡ navItems ≡ moduleComponents ≡ i18n ×5 jezikov; canAccessModule pariteta 8 uporabniških likov × 75 modulov; R174: navItems/navGroups derivirana iz registerja, intra-group red element-wise, mobile/highlight sodbe, nav.group.* ×5)",
+    "moduleRegistryIA": "P0 korak 4 (R174): register POGONI navigacijo — navItems/navGroups derivirana (adapter NAV_ICONS), Sidebar skupinske glave t(labelKey) ×5, KioskBar tabi = register + i18n (moduleConfig divergenca odstranjena)",
+    "moduleInventoryDoc": "docs/MODULE-INVENTORY.md (generirano prek 'bun run inventory' — ročno urejanje ni dovoljeno; R174: + Mobilno stolpec)"
   },
   "testEvidence": {
     "evidenceSource": "docs/PRODUCTION-VALIDATION.md §2 (CI-log-izpeljano, file-based)",

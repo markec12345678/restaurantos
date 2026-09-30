@@ -82,4 +82,13 @@ export const navDe: Record<string, string> = {
   // R137 (epic #115 P1-13): voznikov mobilni zaslon
   'nav.driver': 'Lieferungen',
 
+  // — IA Runde R174 (epic #144 P0 Schritt 4): Gruppenüberschriften (nav.group.*) —
+  'nav.group.sales': 'Verkauf',
+  'nav.group.cash': 'Kasse',
+  'nav.group.guests': 'Gäste & CRM',
+  'nav.group.menu': 'Karte & Bestand',
+  'nav.group.staff': 'Personal',
+  'nav.group.analytics': 'Analytik',
+  'nav.group.system': 'System',
+
 }
