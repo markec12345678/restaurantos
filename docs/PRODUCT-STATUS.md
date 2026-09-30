@@ -16,9 +16,9 @@
   "version": "1.26.0",
   "versionSource": "package.json",
   "statusDocVersion": 1,
-  "statusUpdated": "2026-09-29",
-  "statusUpdatedRound": "R172 (issue #144, P0 korak 1–2: re-audit + authoritative baseline + doc truth)",
-  "headCommitAtStatus": "fe6c1b32",
+  "statusUpdated": "2026-09-30",
+  "statusUpdatedRound": "R177 (issue #144, P0 korak 7: Golden Path §7 — celotna veriga v enem e2e serial toku, sim-označeno)",
+  "headCommitAtStatus": "59dc361",
   "stack": {
     "framework": "Next.js 16 App Router",
     "language": "TypeScript 5 (strict)",
@@ -91,7 +91,7 @@
     "modifiersJson dual-write + apiKeys backfill ostanka (C4-a/b, backlog, utemeljena)"
   ],
   "goldenPath": {
-    "status": "PARTIAL — e2e core-flow pokriva login→miza→naročilo→pošiljanje→KDS→plačilo→račun; FURS sim-mode + inventory/report členi niso v enem end-to-end dokazu",
+    "status": "COMPLETE (E2E, sim-označeno) — P0 korak 7 (R177): tests/e2e/core-flow.spec.ts pokriva CELOTNO §7 verigo v ENEM serial toku (22 testov): Setup (setup/status) → Login (PIN; +401 avtorizacijska vrata na blagajni/Z-poročilu) → Open Shift (blagajniška izmena @ loc-1 prek gp-cashier seeda) → Table → Order + Modifier (modifiersJson 'Ekstra sir', strežniško avtoritativna cena = osnova + 1.5 iz DB) → Fire (firedAt) → KDS → Ready → Serve → Payment (+ Idempotency: replay z istim idempotencyKey = isti payment) → Receipt (ZDDV-1 predogled z modifierjem + tisk) → FURS ⚠️SIMULACIJA (račun ostane pending, fiscalVerified=false, EOR prazen, FURS_VERIFY_FAILED audit — NI produkcijska validacija) → Close (zaprtje izmene; cashDifference = 0; avtomatski Z-osnutek) → Z-report (finalizacija; OPEN_SHIFTS vrata) → Inventory (razknjižba + StockTransaction sale) → Report (EOD totalRevenue/paidOrders/isDayClosed konsistenca) → Audit (CREATE_PAYMENT/CREATE_ORDER). Ostali §7 vidiki po referenci: tenant izolacija = multi-tenant-security.spec, offline/reconnect = outbox-worker.spec, failure path = FURS sim audit. Lokalna vrata: tsc-split 0+0 · lint 0 · unit 291f/5303/0 · IT 23f/235/0 · živa API-interpretacija celotne verige 22/22 korakov (sandbox OOM kanon: polni playwright Lokalno omejen s PGlite/Turbopack pomnilnikom — kanonski e2e dokaz = CI na realnem PG)",
     "target": "issue #144 §7 (Setup→Login→Shift→Table→Order→Modifier→Fire→KDS→Ready→Serve→Payment→Receipt→FURS→Close→Z→Inventory→Report)"
   }
 }

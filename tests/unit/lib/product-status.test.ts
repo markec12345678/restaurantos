@@ -40,8 +40,8 @@ describe('PRODUCT-STATUS.md — verzija brez drifta (#144 §12)', () => {
     expect(status?.['versionSource']).toBe('package.json')
   })
 
-  it('statusUpdatedRound navaja rundi izvora', () => {
-    expect(String(status?.['statusUpdatedRound'])).toContain('R172')
+  it('statusUpdatedRound navaja rundi izvora (R177: Golden Path §7)', () => {
+    expect(String(status?.['statusUpdatedRound'])).toContain('R177')
   })
 })
 
@@ -88,9 +88,17 @@ describe('PRODUCT-STATUS.md — zahtevana polja (#144 §12 seznam)', () => {
     expect(String(te['evidenceSource'])).toContain('PRODUCTION-VALIDATION.md')
   })
 
-  it('goldenPath je PARTIAL (polna pot #144 §7 še ni en end-to-end dokaz)', () => {
+  it('goldenPath je COMPLETE s sim-oznako (R177 §7; FURS še vedno NE produkcijska validacija)', () => {
     const gp = status?.['goldenPath'] as Record<string, unknown>
-    expect(gp['status']).toContain('PARTIAL')
+    // R177 (P0 korak 7): celotna §7 veriga v enem e2e serial toku
+    expect(String(gp['status'])).toContain('COMPLETE')
+    // Anti-overclaim pin ostane: FURS segment je izrecno SIMULACIJA
+    expect(String(gp['status'])).toContain('SIMULACIJA')
+    expect(String(gp['status'])).toContain('NI produkcijska validacija')
+    // §7 členi, ki jih je R177 dodal (prej PARTIAL): shift/modifier/idempotency/close/z/report
+    for (const segment of ['Open Shift', 'Modifier', 'Idempotency', 'Close', 'Z-report', 'Inventory', 'Report']) {
+      expect(String(gp['status'])).toContain(segment)
+    }
   })
 })
 

@@ -182,7 +182,8 @@ describe('R166 T3: POST /api/furs core — sim 400 + X-Fiscal-Warning + eor prop
       expect(body.isSimulation).toBe(true)
       expect(body.fiscalStatus).toBe('pending')
       // F5 (končno): sim EOR je result-internen — response.eor ostane ''
-      // (cross-layer kontrakt E2E core-flow :288/:310: response.eor === DB.eor;
+      // (cross-layer kontrakt E2E core-flow :446/:466 [R177 Golden Path
+      // prenova; prej :288/:310]: response.eor === DB.eor;
       // propagacija poskusena in VRNJENA v R166 na E2E dokaz)
       expect(body.eor).toBe('')
       // R111: CAS claim updateMany (1×) — pending reset pri FURS-failu NI tu,

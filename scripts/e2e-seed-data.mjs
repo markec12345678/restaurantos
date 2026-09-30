@@ -159,6 +159,26 @@ export async function seedE2eData(executor, ctx) {
   `, ['ej-filiala', 'filiala-admin', 'job-admin'])
     console.log('[seed] ✅ filiala-admin (PIN 2222, loc-2) seedan')
 
+  // R177 (issue #144 P0 korak 7 — §7 Golden Path): blagajniški upravljav @ loc-1.
+  // Open Shift člen (POST /api/cash-register) izpelje lokacijo izmene iz
+  // body.employeeId, ker je test-admin seja BREZ lokacije (super-admin kanon);
+  // brez zaposlenega z locationId bi odpiranje padlo na SHIFT_LOCATION_REQUIRED.
+  // Izmena MORA biti na loc-1, da živa statistika / zaprtje / Z-poročilo / EOD
+  // poročilo vsebujejo naročilo iz Golden Path poti (table-1 @ loc-1).
+  // Prijava za ta račun ni potrebna (avtentikacija ostane test-admin), zapis
+  // je idempotenten (ON CONFLICT).
+  {
+    const gpin = '9999'
+    const gpinHash = await bcrypt.hash(gpin, 10)
+    const gpinLookup = createHmac('sha256', NEXTAUTH_SECRET).update(gpin).digest('hex')
+    await run(`
+    INSERT INTO "Employee" (id, name, email, phone, role, status, "hireDate", pin, "pinLookup", "locationId", "createdAt", "updatedAt")
+    VALUES ($1, $2, $3, $4, $5::"EmployeeRole", $6::"EmployeeStatus", NOW(), $7, $8, 'loc-1', NOW(), NOW())
+    ON CONFLICT (email) DO UPDATE SET pin = $7, "pinLookup" = $8, "locationId" = 'loc-1'
+  `, ['gp-cashier', 'GP Cashier', 'gp-cashier@e2e.test', '', 'manager', 'active', gpinHash, gpinLookup])
+    console.log('[seed] ✅ gp-cashier (loc-1, za Open Shift člen §7) seedan')
+  }
+
   // ═══ R92 FIX: MODEL A E2E fixture ids (mg-loc-1/2-1, sc-loc-1/2-1,
   // do-loc-1/2-dinein) — MODELA-9..16 jih referencirajo; stari seed jih je
   // izgubil. Vse per-lokacijo (MODEL A NOT NULL locationId). ═══
