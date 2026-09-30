@@ -1,8 +1,10 @@
 import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
-import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
+import { parsePaginationParams } from '@/lib/api-utils'
+import { structuredErrorResponse } from '@/lib/structured-error'
 // FIX R112 (RL-2): rate-limit importi — helper po hišnem kanonu DIREKTNO iz
 // rate-limit/response (NE prek barrela; barrel mockajo testi brez helperja).
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
@@ -63,7 +65,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ checks: deepToNumbers(checks), total, limit, offset })
   } catch (error: unknown) {
-    return handleApiError(error, 'GET /api/checks', 'Napaka pri pridobivanju čekov')
+    return structuredErrorResponse(error, 'GET /api/checks', 'Napaka pri pridobivanju čekov')
   }
 }
 
@@ -80,6 +82,19 @@ export async function POST(req: Request) {
 
     return await handlePostCheck(req, authResult as { session?: { employeeId?: string } | null })
   } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/checks', 'Napaka pri ustvarjanju čeka')
+    // R181 CK-5 (error kontrakt, pariteta R109 PUT/DELETE): P2002/P2034
+    // race-pathi → 409 (nikoli 500); strukturirani { error, status } throw-i
+    // iz CK-5 tx telesa → pravi statusi (prej: handleApiError → 500
+    // '[object Object]').
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Ček je v obdelavi (sočasen dostop) — osvežite in poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'POST /api/checks', 'Napaka pri ustvarjanju čeka')
   }
 }

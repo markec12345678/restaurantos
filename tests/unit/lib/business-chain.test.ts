@@ -198,10 +198,12 @@ describe('BUSINESS-CHAIN — anti-overclaim (epic #144 kanon)', () => {
     expect(committedDoc).toContain('REŠENO R180')
   })
 
-  it('A3 ostaja dokumentirano odprto arhitekturno tveganje (P1 kandidat)', () => {
+  it('A3 je dokumentiran kot REŠENO R181 (CK-5 kanon; drift-gate na rešitev, ne na težavo)', () => {
     expect(committedDoc).toContain('A3')
-    expect(committedDoc).toContain('recalculateAffectedChecks')
-    expect(committedDoc).toContain('P1 kandidat')
+    expect(committedDoc).toContain('REŠENO R181')
+    expect(committedDoc).toContain('recalculateAffectedChecksInTx')
+    // stari odprto-tveganje opis ne sme več obstajati (negativni pin)
+    expect(committedDoc).not.toContain('A3 🟡')
   })
 
   it('dokument je strukturna verifikacija, NE produkcijska validacija', () => {

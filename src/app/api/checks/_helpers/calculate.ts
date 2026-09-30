@@ -2,6 +2,7 @@
 // Izračuni zneskov, validacija popustov
 
 import { db } from '@/lib/db'
+import { Prisma } from '@prisma/client'
 import { toNum } from '@/lib/decimal'
 
 // ─── Tipi ────────────────────────────────────────────────────
@@ -44,10 +45,14 @@ export interface DiscountValidation {
   error: string | null
 }
 
+// R181 CK-5: opcijski `client` — znotraj pisalnega kanona se validacija
+// izvede proti TX-FRESH podatkom (isti klient kot create/link/recalc),
+// zunaj tx ostane privzeti `db` (UX pre-flight).
 export async function validateAndCalculateDiscount(
   appliedDiscountId: string | null | undefined,
   subtotal: number,
-  locationId?: string
+  locationId?: string,
+  client: Prisma.TransactionClient = db as Prisma.TransactionClient
 ): Promise<DiscountValidation> {
   if (!appliedDiscountId) {
     return { discount: 0, discountId: null, error: null }
@@ -56,7 +61,7 @@ export async function validateAndCalculateDiscount(
   // BUG-HUNT FIX 2026-09-19: locationId scope — popust druge lokacije ni uporabljiv
   // (Discount.locationId je NOT NULL po MODEL A). findFirst ohranja staro
   // semantiko "ni najden → brez popusta" namesto findUnique + ročni filter.
-  const discountObj = await db.discount.findFirst({
+  const discountObj = await client.discount.findFirst({
     where: { id: appliedDiscountId, ...(locationId ? { locationId } : {}) },
   })
   if (!discountObj) {

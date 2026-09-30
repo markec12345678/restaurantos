@@ -27,27 +27,29 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `0beb4a7` — osveženo R180, P0 korak 10)
+## 2. CI / repository evidence (HEAD `7e228dc` — osveženo R181, P1 A3/CK-5)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36742954518` — **success**, 8/8 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests, Playwright E2E) |
-| E2E run | `36742954582` — **success** (Playwright: 234 passed / 4 skipped) |
-| run_attempt | CI run 8/8 = attempt 1 (API verified); E2E run success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 293 fajlov / **5339** testov, 0 skipped — `test:unit` vključuje security suite (100 fajlov / **1949** = podmnožica job-a; R177-d semantika, ne seštevek) |
+| CI run | `36755371246` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
+| E2E run | `36755371240` — **success** (Playwright: 234 passed / 4 skipped) |
+| run_attempt | CI run 7/7 = attempt 1 (API verified); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
+| Unit (CI log) | 294 fajlov / **5363** testov, 0 skipped — `test:unit` vključuje security suite (100 fajlov / **1949** = podmnožica job-a; R177-d semantika, ne seštevek) |
 | Integration (CI log) | 23 fajlov / **235** testov, 0 skipped |
-| E2E Security | **96 passed** (job log grep; enak kot R178 run — od takrat ni novih security specov) |
-| Lokalna reprodukcija | vitest run 5363/5363 (294 fajlov), exit 0 (R180 lokalna vrata, +1f/24 business-chain drift-gate; monotono ≥ R179 5339) |
+| E2E Security | **96 passed** (job log grep; enak kot R178/R179 run — od takrat ni novih security specov) |
+| Lokalna reprodukcija | vitest run 5377/5377 (295 fajlov), exit 0 (R181 lokalna vrata, +1f/14 CK-5 POST-checks kanon drift-gate; monotono ≥ R180 5363) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R180, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
+Skipped/todo sweep (re-verificirano R181, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
-furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R180 ni dodal novih skipov.
+furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R181 ni dodal novih skipov.
 
 > Zgodovina osvežitev §2: R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
 > 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
 > 36736765685, 234/4, E2E-sec 96, podmnožična semantika po R177-d), R180 @ 0beb4a7
-> (run 36742954518, 8/8 jobov, 234/4, E2E-sec 96 — ista drevesa +1 doc-truth gate).
+> (run 36742954518, 8/8 jobov, 234/4, E2E-sec 96 — ista drevesa +1 doc-truth gate), R181 @
+> 7e228dc (run 36755371246, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa +1f/24
+> R180 gate; R180-b2 security bump next 16.3.6 ujel GitHub advisory GHSA-vcvr-r3jv-pc5j).
 
 > Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
 

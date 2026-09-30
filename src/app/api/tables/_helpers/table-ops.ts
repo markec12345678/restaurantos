@@ -297,7 +297,7 @@ export async function mergeTables(data: MergeTablesData): Promise<MergeTablesRes
         const subtotal = round2(updatedItems.reduce((s, oi) => s + toNum(oi.price) * oi.quantity, 0))
         const tax = round2(updatedItems.reduce((s, oi) => s + toNum(oi.vatAmount), 0))
         // Ohrani absolutni popust in tip ciljnega naročila (popust ne more
-        // preseči osnove — parity z recalculateAffectedChecks v checks API)
+        // preseči osnove — parity s checks API (R181 CK-5 kanon))
         const discount = Math.min(toNum(targetFresh.discount), subtotal)
         const tip = toNum(targetFresh.tip)
         const total = round2(subtotal + tax - discount)
