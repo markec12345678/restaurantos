@@ -40,8 +40,8 @@ describe('PRODUCT-STATUS.md — verzija brez drifta (#144 §12)', () => {
     expect(status?.['versionSource']).toBe('package.json')
   })
 
-  it('statusUpdatedRound navaja rundi izvora (R182: A2 enoten zaloga lock kanon — P1 faza)', () => {
-    expect(String(status?.['statusUpdatedRound'])).toContain('R182')
+  it('statusUpdatedRound navaja rundi izvora (R183: A7 enoten reversal kanon plačilnega statusa — P1 faza)', () => {
+    expect(String(status?.['statusUpdatedRound'])).toContain('R183')
   })
 })
 

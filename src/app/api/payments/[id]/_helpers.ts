@@ -2,7 +2,7 @@
 // PUT /api/payments/[id] — pomožni modul za reversal logiko in transakcije
 
 import { db } from '@/lib/db'
-import { deepToNumbers, sumBy, greaterThanOrEqual, subtract, toNum, isPositive, round2 } from '@/lib/decimal'
+import { deepToNumbers, toNum, isPositive, round2 } from '@/lib/decimal'
 
 // ─── R109 (PAY-1): unificirani advisory lock ključi za mutacije plačil ───
 //
@@ -134,54 +134,17 @@ export async function reverseLoyaltyPoints(
   })
 }
 
-// ─── Preračunaj paymentStatus za check in order po povračilu ───
-export async function recalculatePaymentStatus(
-  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
-  existingPayment: {
-    checkId: string
-    check?: { orderId?: string }
-  },
-  checkForDiscount: { orderId?: string | null } | null,
-): Promise<void> {
-  const checkId = existingPayment.checkId
-
-  // Recalculate check paymentStatus
-  const allPayments = await tx.payment.findMany({
-    where: { checkId, status: 'completed' },
-  })
-  const totalPaid = sumBy(allPayments, p => p.amount)
-  const check = await tx.check.findUnique({ where: { id: checkId } })
-
-  let paymentStatus: import('@prisma/client').PaymentStatus = 'unpaid'
-  if (check) {
-    if (greaterThanOrEqual(totalPaid, subtract(check.total, 0.01))) {
-      paymentStatus = 'paid'
-    } else if (toNum(totalPaid) > 0) {
-      paymentStatus = 'partial'
-    }
-  }
-
-  await tx.check.update({
-    where: { id: checkId },
-    data: { paymentStatus },
-  })
-
-  // FIX CRITICAL: Recalculate ORDER paymentStatus after refund/void
-  const orderId = checkForDiscount?.orderId || existingPayment.check?.orderId
-  if (orderId) {
-    const allOrderChecks = await tx.check.findMany({ where: { orderId } })
-    const allPaid = allOrderChecks.every(c => c.paymentStatus === 'paid')
-    const anyPartial = allOrderChecks.some(c => c.paymentStatus === 'partial')
-    const orderPaymentStatus = allPaid ? 'paid' : anyPartial ? 'partial' : 'unpaid'
-    await tx.order.update({
-      where: { id: orderId },
-      data: {
-        paymentStatus: orderPaymentStatus,
-        ...(orderPaymentStatus === 'unpaid' ? { paidAt: null } : {}),
-      },
-    })
-  }
-}
+// ─── R183 (A7): recalculatePaymentStatus je ODSTRANJEN ────
+//
+// Njegova derivacija (Σ completed BREZ refundAmount → 'unpaid' terminacija,
+// paidAt reset samo pri 'unpaid') se je DRIFTALA od refund poti ('storno'
+// terminacija, refundAmount-zavedna, paidAt ni bil resetiran) — isti poslovni
+// dogodek je glede na pot končal v različnem stanju. Zdaj uporablja VSA
+// reversal poti ENOTEN kanon:
+//   recalcCheckAndOrderStatusAfterReversal
+//     (src/app/api/payments/_helpers/check-status.ts — isti dom kot plačilna
+//     smer updateCheckAndOrderStatus). PUT /api/payments/[id] ga kliče
+//     direktno; stare signatur ne ohranjamo (fat barrel ≠ drift varnost).
 
 // Re-export deepToNumbers for convenience
 export { deepToNumbers }

@@ -10,7 +10,11 @@ import { logger } from '@/lib/logger'
 import { structuredErrorResponse } from '@/lib/structured-error'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
-import { reverseGiftCard, reverseLoyaltyPoints, recalculatePaymentStatus, deepToNumbers, paymentMutationLockKey, paymentCheckLockKey } from './_helpers'
+// R183 (A7): recalculatePaymentStatus odstranjen iz ./_helpers — enoten
+// reversal kanon živi v payments/_helpers/check-status.ts (isti dom kot
+// plačilna smer) in ga uporabljata TAKO PUT (refund/void) KOT POST /refund.
+import { reverseGiftCard, reverseLoyaltyPoints, deepToNumbers, paymentMutationLockKey, paymentCheckLockKey } from './_helpers'
+import { recalcCheckAndOrderStatusAfterReversal } from '../_helpers'
 import { toNum, round2 } from '@/lib/decimal'
 
 
@@ -259,8 +263,11 @@ export async function PUT(
           throw { error: 'Plačilo ni najdeno', status: 404 }
         }
 
-        // Recalculate payment statuses
-        await recalculatePaymentStatus(tx, existingPayment, checkForDiscount)
+        // R183 (A7): Recalculate payment statuses prek ENOTNEGA reversal
+        // kanona (refundAmount-zaveden netPaid → 'storno'/'partial'/'paid';
+        // order agregacija čez VSE čeke; paidAt reset ko order ni več 'paid').
+        // checkId = imutabilen (R109 lock graf P → C, ključavnica zgoraj).
+        await recalcCheckAndOrderStatusAfterReversal(tx, existingPayment.checkId)
 
         return updatedPayment
       })

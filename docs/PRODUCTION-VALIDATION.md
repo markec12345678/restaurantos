@@ -27,22 +27,22 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `46150bc` — osveženo R182, P1 A2/enoten zaloga lock kanon)
+## 2. CI / repository evidence (HEAD `a3b2cdc` — osveženo R183, P1 A7/enoten reversal kanon plačilnega statusa)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36763362891` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
-| E2E run | `36763362950` — **success** (Playwright: 234 passed / 4 skipped) |
+| CI run | `36766358224` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
+| E2E run | `36766358185` — **success** (Playwright: 234 passed / 4 skipped) |
 | run_attempt | CI run 7/7 = attempt 1 (API verified); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 295 fajlov / **5377** testov, 0 skipped — `test:unit` vključuje security suite (100 fajlov / **1949** = podmnožica job-a; R177-d semantika, ne seštevek) |
+| Unit (CI log) | 296 fajlov / **5391** testov, 0 skipped — `test:unit` vključuje security suite (102 fajlov / **1976** = podmnožica job-a; R177-d semantika, ne seštevek) |
 | Integration (CI log) | 23 fajlov / **235** testov, 0 skipped |
 | E2E Security | **96 passed** (job log grep; enak kot R178/R179 run — od takrat ni novih security specov) |
-| Lokalna reprodukcija | vitest run 5391/5391 (296 fajlov), exit 0 (R182 lokalna vrata, +1f/13 A2 drift-gate +1 chain pin; monotono ≥ R181 5377) |
+| Lokalna reprodukcija | vitest run 5405/5405 (297 fajlov), exit 0 (R183 lokalna vrata, +1f/13 A7 reversal kanon drift-gate +1 chain pin; monotono ≥ R182 5391) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R182, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
+Skipped/todo sweep (re-verificirano R183, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
-furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R182 ni dodal novih skipov.
+furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R183 ni dodal novih skipov.
 
 > Zgodovina osvežitev §2: R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
 > 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
@@ -51,6 +51,7 @@ furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R182 ni dodal n
 > 7e228dc (run 36755371246, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa +1f/24
 > R180 gate; R180-b2 security bump next 16.3.6 ujel GitHub advisory GHSA-vcvr-r3jv-pc5j).
 > R182 @ 46150bc (run 36763362891, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa +1f/13 R181 CK-5 gate; A2 enoten zaloga lock kanon: acquireInvStockLocks čez prodajo/vračilo/prevzem).
+> R183 @ a3b2cdc (run 36766358224, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa +1f/13 R182 A2 gate; A7 enoten reversal kanon plačilnega statusa: recalcCheckAndOrderStatusAfterReversal, refundAmount-zaveden netPaid → storno/partial/paid).
 
 > Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
 

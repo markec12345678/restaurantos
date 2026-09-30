@@ -15,6 +15,9 @@ import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rat
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { generateJournalForRefund } from '@/lib/accounting/journal-generator'
 import { paymentMutationLockKey, paymentCheckLockKey } from '../_helpers'
+// R183 (A7): enoten reversal kanon (check/order paymentStatus derivacija) —
+// doma v payments/_helpers/check-status.ts skupaj s plačilno smerjo.
+import { recalcCheckAndOrderStatusAfterReversal } from '../../_helpers'
 import { z } from 'zod'
 
 import { formatEUR } from '@/lib/safe-format'
@@ -219,53 +222,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         }
       }
 
-      // 5. FIX: Posodobi Check paymentStatus
+      // 5+6. R183 (A7): Posodobi Check + Order paymentStatus prek ENOTNEGA
+      // reversal kanona (recalcCheckAndOrderStatusAfterReversal) — prej inline
+      // reimplementacija (netPaid v JS float, paidAt ni bil resetiran), ki se
+      // je DRIFTALA od PUT /api/payments/[id] poti ('storno' vs 'unpaid'
+      // terminacija, refundAmount-zavednost). Kanon: refundAmount-zaveden
+      // netPaid (Decimal), order agregacija čez VSE čeke (split-check
+      // BUG-HUNT 2026-09-19 semantika), paidAt = null ko order ni več 'paid'.
+      // Ključavnica paymentCheckLockKey je že pridobljena zgoraj (R109).
       if (payment.checkId) {
-        const totalCheckPaid = await tx.payment.aggregate({
-          where: { checkId: payment.checkId, status: 'completed' },
-          _sum: { amount: true },
-        })
-        const totalRefunded = await tx.payment.aggregate({
-          where: { checkId: payment.checkId },
-          _sum: { refundAmount: true },
-        })
-        const netPaid = toNum(totalCheckPaid._sum.amount) - toNum(totalRefunded._sum.refundAmount)
-        const checkTotal = toNum(payment.check.total)
-
-        let checkStatus: import('@prisma/client').PaymentStatus = 'paid'
-        if (netPaid <= 0) checkStatus = 'storno' // FIX Test 4.2: fully refunded → storno (not unpaid)
-        else if (netPaid < checkTotal) checkStatus = 'partial'
-
-        await tx.check.update({
-          where: { id: payment.checkId },
-          data: { paymentStatus: checkStatus },
-        })
-
-        // 6. FIX: Posodobi Order paymentStatus
-        // BUG-HUNT FIX 2026-09-19 (split-check): prej je order status bil deriviran
-        // iz ENEGA čeka — refund enega čeka je flipnil celoten order na
-        // 'partial'/'storno', čeprav so ostali čeki še vedno plačani (EOD/Z in
-        // zaprtje izmene nato napačno filtrirajo). Agregiramo VSE čeke orderja.
-        if (payment.check.orderId) {
-          const allOrderChecks = await tx.check.findMany({
-            where: { orderId: payment.check.orderId },
-            select: { paymentStatus: true },
-          })
-          const allPaid = allOrderChecks.length > 0 && allOrderChecks.every(c => c.paymentStatus === 'paid')
-          const allStorno = allOrderChecks.length > 0 && allOrderChecks.every(c => c.paymentStatus === 'storno')
-          const anyPaidOrPartial = allOrderChecks.some(c => c.paymentStatus === 'paid' || c.paymentStatus === 'partial')
-          const orderPaymentStatus = allPaid
-            ? 'paid'
-            : allStorno
-              ? 'storno'
-              : anyPaidOrPartial
-                ? 'partial'
-                : 'unpaid'
-          await tx.order.update({
-            where: { id: payment.check.orderId },
-            data: { paymentStatus: orderPaymentStatus },
-          })
-        }
+        await recalcCheckAndOrderStatusAfterReversal(tx, payment.checkId)
       }
 
       // 7. Audit log
