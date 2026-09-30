@@ -68,12 +68,18 @@ describe('PRODUCT-STATUS.md — zahtevana polja (#144 §12 seznam)', () => {
     expect(pilot['executed']).toBe(false)
   })
 
-  it('testEvidence je NOTRANJE konsistenten (unit + security = total)', () => {
+  it('testEvidence je NOTRANJE konsistenten (unit job = total; security je podmnožica)', () => {
     const te = status?.['testEvidence'] as Record<string, unknown>
     const unit = te['unit'] as { files: number; tests: number }
     const sec = te['unitSecuritySuite'] as { files: number; tests: number }
-    expect(te['unitTotalWithSecurity']).toBe(unit.tests + sec.tests)
-    expect(unit.tests).toBeGreaterThanOrEqual(5250) // monotoni kanon (R172 baseline)
+    // R177-c semantika: `unit` = CI "Unit Tests" job (test:unit = VSE unit,
+    // vključno s security suite) → total ≡ unit.tests; security je PODMNOŽICA
+    // (100f/1949 znotraj 291f/5303), ne seštevek (prej 5251+1949=7200 je
+    // dvojno štel — CI job danes izpiše eno številko: 291f/5303).
+    expect(te['unitTotalWithSecurity']).toBe(unit.tests)
+    expect(unit.files).toBeGreaterThan(sec.files)
+    expect(unit.tests).toBeGreaterThan(sec.tests)
+    expect(unit.tests).toBeGreaterThanOrEqual(5250) // monotoni kanon (R172 baseline; 5303 @ R177)
   })
 
   it('testEvidence ima CI dokazni kanon (file-based proof + verification politika)', () => {
