@@ -17,8 +17,8 @@
   "versionSource": "package.json",
   "statusDocVersion": 1,
   "statusUpdated": "2026-09-30",
-  "statusUpdatedRound": "R178 (issue #144, P0 korak 8: regresijska vrata — §8 produkcijska validacijska matrica, generirana + drift-gated; brskalniški dokazi iz rund P5/R172–R177)",
-  "headCommitAtStatus": "5440812",
+  "statusUpdatedRound": "R179 (issue #144, P0 korak 9: doc truth reset — README badge/evidence vrstice + PRODUCTION-VALIDATION §2 osvežena na CI-dokazano HEAD 6f38d77, doc-truth drift-gate test; popravljen R172 sweep poplav v v1.5.0 zgodovinsko vrstico)",
+  "headCommitAtStatus": "6f38d77",
   "stack": {
     "framework": "Next.js 16 App Router",
     "language": "TypeScript 5 (strict)",
@@ -41,14 +41,14 @@
   },
   "testEvidence": {
     "evidenceSource": "docs/PRODUCTION-VALIDATION.md §2 (CI-log-izpeljano, file-based)",
-    "unit": { "files": 292, "tests": 5325 },
+    "unit": { "files": 293, "tests": 5339 },
     "unitSecuritySuite": { "files": 100, "tests": 1949 },
-    "unitTotalWithSecurity": 5325,
+    "unitTotalWithSecurity": 5339,
     "integration": { "files": 23, "tests": 235 },
     "e2ePlaywright": { "passed": 234, "skipped": 4 },
-    "e2eSecurity": 88,
+    "e2eSecurity": 96,
     "ciVerification": "lokalna vrata ×2 (R172) = vir unit/integration števil; CI run za trenutni HEAD potrdi enaka vrata ob pushu (vitest štetje je deterministično na istem drevesu)",
-    "ciLastFileBasedProof": "HEAD 1fa1717 (R177) — CI run 36725492462: 10/10 check-runs success attempt=1 (Unit 291f/5303 = 3354+1949, Integration 235, E2E 234 passed/4 skipped — core-flow GOLDEN PATH §7 22/22 na realnem PG, webauthn 3/3; prejšnji run 36723205927 @ 84a5267 je ujel webauthn R99-a regreso — popravljen v 1fa1717 z gp-cashier brez PIN-a) + E2E Security + Monitor ×2, vsi success; §2 tabelo dokumentira PRODUCTION-VALIDATION.md",
+    "ciLastFileBasedProof": "HEAD 6f38d77 (R178) — CI run 36736765685: 10/10 check-runs success attempt=1 (Unit 292f/5325 = vključno security podmnožica 100f/1949 po R177-d semantiki, Integration 23f/235, E2E 234 passed/4 skipped — core-flow GOLDEN PATH §7 22/22 na realnem PG, webauthn 3/3) + E2E run 36736765735 + E2E Security 96 + Monitor ×2 (36737786751, 36737314344), vsi success; R179 doda 1f/14 (doc-truth gate) → lokalna vrata 293f/5339 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R179)",
     "verifyFeatures": "30/30 (npx tsx scripts/verify-features.ts)"
   },
   "deployedEnvironment": {

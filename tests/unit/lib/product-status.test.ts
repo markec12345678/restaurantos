@@ -40,8 +40,8 @@ describe('PRODUCT-STATUS.md — verzija brez drifta (#144 §12)', () => {
     expect(status?.['versionSource']).toBe('package.json')
   })
 
-  it('statusUpdatedRound navaja rundi izvora (R178: regresijska vrata / §8 matrica)', () => {
-    expect(String(status?.['statusUpdatedRound'])).toContain('R178')
+  it('statusUpdatedRound navaja rundi izvora (R179: doc truth reset — README/evidence ≡ PRODUCT-STATUS)', () => {
+    expect(String(status?.['statusUpdatedRound'])).toContain('R179')
   })
 })
 

@@ -27,23 +27,27 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `bb7d422f` — osveženo R171)
+## 2. CI / repository evidence (HEAD `6f38d77c` — osveženo R179, P0 korak 9)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36630369663` — **success**, 7/7 jobov (Security Audit, Lint & Typecheck, Build (production), Migration Test (schema drift), Integration Tests (real DB), Unit Tests (1300+), E2E Security Tests (30)) |
-| E2E run | `36630369953` — **success** (Playwright: 226 passed / 4 skipped) |
-| CI Monitor | 2× success (`36630945530`, `36631234786`) |
+| CI run | `36736765685` — **success**, 7/7 jobov (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) |
+| E2E run | `36736765735` — **success** (Playwright: 234 passed / 4 skipped) |
+| CI Monitor | 2× success (`36737786751`, `36737314344`) |
 | run_attempt | 1 povsod — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 289 fajlov / **5231** testov + 100 fajlov / **1949** (tests/unit/security) = **7180, 0 skipped** |
+| Unit (CI log) | 292 fajlov / **5325** testov, 0 skipped — `test:unit` vključuje security suite (100 fajlov / **1949** = podmnožica job-a; R177-d semantika, ne seštevek) |
 | Integration (CI log) | 23 fajlov / **235** testov, 0 skipped |
-| E2E Security | **88 passed** |
-| Lokalna reprodukcija | vitest run 5231/5231 (289 fajlov), exit 0 — CI count natančen (R170-final ×2 + R171 gates) |
+| E2E Security | **96 passed** (prej 88 v R171-osvežitvi — rast security E2E pokritosti od takrat) |
+| Lokalna reprodukcija | vitest run 5339/5339 (293 fajlov), exit 0 (R179 lokalna vrata, +1f/14 doc-truth gate; monotono ≥ R172 baseline 5250) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R171): 15 zadetkov `.skip/.todo/.only` — VSE v
+Skipped/todo sweep (re-verificirano R179): 15 zadetkov `.skip/.todo/.only` — VSE v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
 furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT.
+
+> Zgodovina osvežitev §2: R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
+> 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
+> 36736765685, 234/4, E2E-sec 96, podmnožična semantika po R177-d).
 
 > Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
 
