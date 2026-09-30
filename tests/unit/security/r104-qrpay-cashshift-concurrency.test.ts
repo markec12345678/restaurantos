@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   dbPaymentFindUnique: vi.fn(),
   auditLogCreate: vi.fn(),
+  createAuditLog: vi.fn(),
   emitEvent: vi.fn(),
   // tx-level (qr-pay confirm)
   txExecuteRaw: vi.fn(),
@@ -100,7 +101,7 @@ vi.mock('@/lib/db', () => ({
     payment: { findUnique: mocks.dbPaymentFindUnique },
     auditLog: { create: mocks.auditLogCreate },
   },
-  createAuditLog: vi.fn().mockResolvedValue(undefined),
+  createAuditLog: mocks.createAuditLog,
 }))
 
 vi.mock('@/app/api/payments/_helpers/check-status', () => ({
@@ -210,6 +211,8 @@ beforeEach(() => {
   mocks.updateCheckAndOrderStatus.mockResolvedValue(undefined)
   mocks.dbPaymentFindUnique.mockResolvedValue(null)
   mocks.auditLogCreate.mockResolvedValue({ id: 'al-1' })
+  // R180 (epik #144 §10-A8): qr-pay audit gre prek createAuditLog kanona (hash veriga)
+  mocks.createAuditLog.mockResolvedValue(undefined)
   mocks.emitEvent.mockResolvedValue(undefined)
   mocks.shiftFindUnique.mockResolvedValue({
     id: 'shift-1', locationId: LOC_A, status: 'open', startingCash: 100, openedAt: new Date(), employeeName: 'R104',
@@ -288,8 +291,8 @@ describe('R104 A: POST /api/qr-pay/confirm — atomarnost & idempotency', () => 
     expect(body.paymentId).toBe('pay-0')
     expect(body.message).toContain('že obdelano')
     expect(mocks.txPaymentCreate).not.toHaveBeenCalled()
-    // Replay ne proži duplicirane revizije
-    expect(mocks.auditLogCreate).not.toHaveBeenCalled()
+    // Replay ne proži duplicirane revizije (R180: createAuditLog kanon)
+    expect(mocks.createAuditLog).not.toHaveBeenCalled()
   })
 
   it('A6: P2002 race-path (defense-in-depth) → 200 z obstoječim plačilom, NIKOLI 500 (Q1)', async () => {
@@ -314,11 +317,11 @@ describe('R104 A: POST /api/qr-pay/confirm — atomarnost & idempotency', () => 
     expect(res.status).toBe(409)
   })
 
-  it('A8: audit log točno enkrat za novo plačilo, locationId iz check.order', async () => {
+  it('A8: audit log točno enkrat za novo plačilo, locationId iz check.order (R180: createAuditLog kanon — hash veriga)', async () => {
     await qrPayConfirm(confirmReq())
-    expect(mocks.auditLogCreate).toHaveBeenCalledTimes(1)
-    expect(mocks.auditLogCreate.mock.calls[0][0].data.action).toBe('QR_PAY_PAYMENT')
-    expect(mocks.auditLogCreate.mock.calls[0][0].data.locationId).toBe(LOC_A)
+    expect(mocks.createAuditLog).toHaveBeenCalledTimes(1)
+    expect(mocks.createAuditLog.mock.calls[0][0].action).toBe('QR_PAY_PAYMENT')
+    expect(mocks.createAuditLog.mock.calls[0][0].locationId).toBe(LOC_A)
   })
 
   it('A9: manjkajoč ček → 404 (strukturirani throw, ne 500)', async () => {

@@ -2413,7 +2413,7 @@ model PurchaseOrder {
   supplierId      String
   supplier        Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   // --- Status ---
-  status          PurchaseOrderStatus @default(draft)    // draft, sent, confirmed, partial, received, cancelled
+  status          PurchaseOrderStatus @default(draft)    // draft, submitted, approved, partial, received, cancelled (R180: komentar usklajen z dejanskim enumom — prej zastarel 'sent, confirmed')
   // R132 (epic #115 P1-12): three-way match roll-up (list filtering) —
   // none | partial | invoiced | variance (persistirana; živo poročilo = GET invoice)
   invoiceStatus   String   @default("none")

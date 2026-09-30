@@ -212,10 +212,10 @@ describe('R155/#43 — dual-write ožičenje (src wiring, vzorec r153-gates)', (
       .toContain('finalizedById: finalize ? (employeeId || null) : null,')
   })
 
-  it('stock-mutations: 3 helperja sprejmejo employeeId? in ga zapišejo (employeeId: employeeId ?? null)', () => {
+  it('stock-mutations: 4 helperja sprejmejo employeeId? in ga zapišejo (employeeId: employeeId ?? null) — R180: + createManualStockTransaction (epik #144 §10-A1)', () => {
     const src = SRC('src/app/api/inventory/_helpers/stock-mutations.ts')
-    expect((src.match(/employeeId\?: string \| null/g) ?? []).length).toBe(3)
-    expect((src.match(/employeeId: employeeId \?\? null,/g) ?? []).length).toBe(3)
+    expect((src.match(/employeeId\?: string \| null/g) ?? []).length).toBe(4)
+    expect((src.match(/employeeId: employeeId \?\? null,/g) ?? []).length).toBe(4)
   })
 
   it('waste-mutations: NE piše FK (recordedByUserId je app-user id, ne Employee id)', () => {

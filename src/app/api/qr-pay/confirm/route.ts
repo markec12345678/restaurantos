@@ -37,7 +37,7 @@
 
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { toNum, subtract, greaterThan, round2 } from '@/lib/decimal'
 import { parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
@@ -197,21 +197,21 @@ export async function POST(req: Request) {
     }
 
     // Audit log — SAMO za novo plačilo (replay ne proži duplicirane revizije)
+    // R180 (epik #144 §10-A8): prej direktEn db.auditLog.create BREZ hash verige —
+    // zdaj createAuditLog kanon (SHA-256 previousHash/chainHash, PCI DSS + FURS).
     if (!result.replay) {
-      await db.auditLog.create({
-        data: {
-          action: 'QR_PAY_PAYMENT',
-          entityType: 'Payment',
-          entityId: result.paymentId,
-          // FIX R81 (tenant model): lokacija prek check.order.locationId
-          locationId: result.orderLocationId ?? null,
-          details: JSON.stringify({
-            checkId: data.checkId,
-            amount: result.amount,
-            tipAmount: result.tipAmount,
-            paymentMethod: data.paymentMethod,
-            source: 'qr-pay',
-          }),
+      await createAuditLog({
+        action: 'QR_PAY_PAYMENT',
+        entityType: 'Payment',
+        entityId: result.paymentId,
+        // FIX R81 (tenant model): lokacija prek check.order.locationId
+        locationId: result.orderLocationId ?? null,
+        details: {
+          checkId: data.checkId,
+          amount: result.amount,
+          tipAmount: result.tipAmount,
+          paymentMethod: data.paymentMethod,
+          source: 'qr-pay',
         },
       }).catch(() => {})
     }

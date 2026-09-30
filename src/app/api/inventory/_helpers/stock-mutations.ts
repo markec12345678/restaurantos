@@ -370,3 +370,106 @@ export async function setInventoryItemQuantity(opts: {
     return { item: updated, transaction }
   }, TX_OPTS)
 }
+
+/**
+ * R180 (epik #144 §10-A1): ročna založna transakcija (POST /api/inventory/transactions).
+ * Zadnja nekanonizirana per-item pisalna pot — prej: stale read IZVEN tx +
+ * nepogojen absolutni set + silent clamp-to-0 (INV-1/INV-2 družina, ki je
+ * ostala za R106 migracijo; sočasna prodaja = lost update + razpadla
+ * previousQty→newQty ledger veriga). Zdaj: SKUPNI ključ ključavnice
+ * ('inv-stock:'+id) + tx-fresh scoped re-read + atomarni pogojni decrement
+ * (fail-closed 400 namesto tihega clamp-a) + FEFO batch poraba za odpise
+ * (pariteta z adjust/stocktake kanonom).
+ */
+export async function createManualStockTransaction(opts: {
+  inventoryItemId: string
+  sessionLocationId: string | null
+  type: 'adjustment' | 'write-off' | 'restock' | 'return'
+  /** Že OZNANJENA količina: negativna = odpis (write-off), pozitivna = vnos (restock/return/pozitivna adjustment). */
+  signedQuantity: number
+  reason: string
+  note: string
+  employeeName: string
+  // R155/#43: opcijski FK do Employee (session cuid)
+  employeeId?: string | null
+}): Promise<StockMutationResult> {
+  const { inventoryItemId, sessionLocationId, type, signedQuantity, reason, note, employeeName, employeeId } = opts
+
+  return await db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${inventoryStockLockKey(inventoryItemId)}))`
+
+    // Tx-fresh scoped re-read (prej: stale read izven tx določil newQty)
+    const item = await tx.inventoryItem.findFirst({
+      where: scopedItemWhere(inventoryItemId, sessionLocationId),
+    })
+    if (!item) {
+      throw { error: 'Zalogov artikel ni najden', status: 404 }
+    }
+
+    const currentQty = toNum(item.quantity)
+    const delta = signedQuantity
+    if (delta === 0) {
+      throw { error: 'Količina ne sme biti 0', status: 400 }
+    }
+
+    let updated: Record<string, unknown>
+    let deductedQty = 0
+
+    if (delta < 0) {
+      // Atomarni pogojni decrement — odpis NIKOLI pade pod 0 in NIKOLI ni
+      // tiho clamped na 0 (prej: `quantity: newQty < 0 ? 0 : newQty`).
+      const deduct = Math.abs(delta)
+      const guard = await tx.inventoryItem.updateMany({
+        where: { id: inventoryItemId, quantity: { gte: deduct } },
+        data: { quantity: { decrement: deduct } },
+      })
+      if (guard.count === 0) {
+        throw {
+          error: `Odpis (${deduct}) presega razpoložljivo zalogo (${currentQty})`,
+          status: 400,
+        }
+      }
+      deductedQty = deduct
+      updated = (await tx.inventoryItem.findUnique({
+        where: { id: inventoryItemId },
+        include: { menuItem: true },
+      })) as Record<string, unknown>
+    } else {
+      // Pozitivna pot: inkrement je komutativen, pod ključavnico + Serializable
+      // varen (pariteta z restock kanonom — vključno z lastRestocked metadata).
+      updated = (await tx.inventoryItem.update({
+        where: { id: inventoryItemId },
+        data: { quantity: { increment: delta }, lastRestocked: new Date() },
+        include: { menuItem: true },
+      })) as Record<string, unknown>
+    }
+
+    const transaction = (await tx.stockTransaction.create({
+      data: {
+        inventoryItemId,
+        type,
+        quantity: delta,
+        previousQty: currentQty,
+        newQty: currentQty + delta,
+        costPerUnit: item.costPerUnit,
+        totalCost: round2(multiply(Math.abs(delta), item.costPerUnit)),
+        reason,
+        note,
+        employeeName,
+        employeeId: employeeId ?? null,
+      },
+    })) as unknown as Record<string, unknown>
+
+    // R120 (epik #115 §4): odpis v minus → FEFO alokacija po serijah
+    // (sledljivost do lota — pariteta z adjust/stocktake potmi).
+    if (deductedQty > 0) {
+      await recordBatchConsumption(tx, {
+        inventoryItemId,
+        quantity: deductedQty,
+        stockTransactionId: String((transaction as { id?: string }).id ?? ''),
+      })
+    }
+
+    return { item: updated, transaction }
+  }, TX_OPTS)
+}

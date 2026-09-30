@@ -4,8 +4,11 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
-import { toNum, deepToNumbers, round2, multiply } from '@/lib/decimal'
+import { toNum, deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parseJsonBody, parsePaginationParams, validateBody, BULK_MAX_LIMIT } from '@/lib/api-utils'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { createManualStockTransaction } from '../_helpers/stock-mutations'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 
@@ -121,7 +124,9 @@ export async function POST(req: Request) {
     })
     if ('error' in scope) return scope.error
 
-    // Preveri da inventory item obstaja (scoped)
+    // Preveri da inventory item obstaja (scoped) — R80 WRITE IDOR: fast-path
+    // zgodnja 404 stopnica; R180: dejanski pisalni tok je v R106 kanonu
+    // (createManualStockTransaction) s tx-fresh scoped re-read pod ključavnico.
     const invItem = await db.inventoryItem.findFirst({
       where: { id: inventoryItemId, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
@@ -129,45 +134,39 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Artikel zaloge ni najden' }, { status: 404 })
     }
 
-    const previousQty = toNum(invItem.quantity)
-    const costPerUnit = toNum(invItem.costPerUnit)
     // Za write-off je količina negativna (odštejemo), za restock/return pozitivna
     const signedQty = type === 'write-off' ? -Math.abs(quantity) : Math.abs(quantity)
-    const newQty = round2(previousQty + signedQty)
 
-    // Atomna transakcija: posodobi količino + zabeleži transakcijo
-    const result = await db.$transaction(async (tx) => {
-      const updated = await tx.inventoryItem.update({
-        where: { id: inventoryItemId },
-        data: {
-          quantity: newQty < 0 ? 0 : newQty,
-          ...(signedQty > 0 ? { lastRestocked: new Date() } : {}),
-        },
-        include: { menuItem: true },
-      })
-
-      const transaction = await tx.stockTransaction.create({
-        data: {
-          inventoryItemId,
-          type,
-          quantity: signedQty,
-          previousQty,
-          newQty: newQty < 0 ? 0 : newQty,
-          costPerUnit,
-          totalCost: round2(multiply(Math.abs(signedQty), costPerUnit)),
-          reason: reason || `Ročna transakcija: ${type}`,
-          note,
-          employeeName: authResult.session?.employeeId || '',
-          // R155/#43: employeeName JE session cuid → FK = isti vir
-          employeeId: authResult.session?.employeeId ?? null,
-        },
-      })
-
-      return { item: updated, transaction }
+    // R180 (epik #144 §10-A1): pisalni tok v R106 kanonu — Serializable +
+    // skupni per-item advisory lock + tx-fresh re-read + atomarni pogojni
+    // decrement + FEFO batch poraba. Prej: stale read izven tx + nepogojen
+    // absolutni set + silent clamp-to-0 (lost update + razpadla ledger veriga).
+    const result = await createManualStockTransaction({
+      inventoryItemId,
+      sessionLocationId: scope.locationId,
+      type,
+      signedQuantity: signedQty,
+      reason: reason || `Ročna transakcija: ${type}`,
+      note,
+      employeeName: authResult.session?.employeeId || '',
+      // R155/#43: employeeName JE session cuid → FK = isti vir
+      employeeId: authResult.session?.employeeId ?? null,
     })
 
     return NextResponse.json(deepToNumbers(result), { status: 201 })
   } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/inventory/transactions', 'Napaka pri ustvarjanju transakcije')
+    // R180 (error kontrakt, pariteta z adjust kanonom): P2002/P2034 race-pathi
+    // → 409 (nikoli 500); strukturirani { error, status } throw-i iz tx teles
+    // (404/400) → pravi statusi.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Transakcija zaloge je v obdelavi (sočasen dostop) — poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'POST /api/inventory/transactions', 'Napaka pri ustvarjanju transakcije')
   }
 }

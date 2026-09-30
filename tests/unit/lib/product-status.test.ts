@@ -40,8 +40,8 @@ describe('PRODUCT-STATUS.md — verzija brez drifta (#144 §12)', () => {
     expect(status?.['versionSource']).toBe('package.json')
   })
 
-  it('statusUpdatedRound navaja rundi izvora (R179: doc truth reset — README/evidence ≡ PRODUCT-STATUS)', () => {
-    expect(String(status?.['statusUpdatedRound'])).toContain('R179')
+  it('statusUpdatedRound navaja rundi izvora (R180: business-chain verification — BUSINESS-CHAIN + drift-gate ≡ PRODUCT-STATUS)', () => {
+    expect(String(status?.['statusUpdatedRound'])).toContain('R180')
   })
 })
 
@@ -88,7 +88,9 @@ describe('PRODUCT-STATUS.md — zahtevana polja (#144 §12 seznam)', () => {
     // commita in se spreminja z vsakim docs commitom (samoreferenčna past,
     // ki je podrla Unit na CI). Pinamo STRUKTURO dokaza, ne številko.
     expect(String(te['ciLastFileBasedProof'])).toContain('CI run ')
-    expect(String(te['ciLastFileBasedProof'])).toContain('Monitor ×2')
+    // R180: proof struktura = CI run + E2E run + attempt=1 + E2E Security številka
+    // (R179 run NI imel Monitor jobov — Monitor ×2 pin je bil specifičen za R178 run)
+    expect(String(te['ciLastFileBasedProof'])).toContain('E2E run ')
     expect(String(te['ciLastFileBasedProof'])).toContain('attempt=1')
     expect(String(te['ciVerification'])).toContain('deterministično')
     expect(String(te['evidenceSource'])).toContain('PRODUCTION-VALIDATION.md')

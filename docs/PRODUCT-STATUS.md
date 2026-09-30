@@ -17,8 +17,8 @@
   "versionSource": "package.json",
   "statusDocVersion": 1,
   "statusUpdated": "2026-09-30",
-  "statusUpdatedRound": "R179 (issue #144, P0 korak 9: doc truth reset — README badge/evidence vrstice + PRODUCTION-VALIDATION §2 osvežena na CI-dokazano HEAD 6f38d77, doc-truth drift-gate test; popravljen R172 sweep poplav v v1.5.0 zgodovinsko vrstico)",
-  "headCommitAtStatus": "6f38d77",
+  "statusUpdatedRound": "R180 (issue #144, P0 korak 10: business-chain verification — BUSINESS-CHAIN.md generiran (14 dejstev: 11 iz epika §10 + 3 razširitve; 35 modelov / 73 writer / 36 reader / 38 audit akcij, vse fail-closed sidra) + 24-testni drift-gate; arhitekturna tveganja A0–A9: A1 (transactions POST clamping) + A8 (2 audit pisca brez hash verige) REŠENA, A2/A3/A6/A7 dokumentirana kot P1 kandidati)",
+  "headCommitAtStatus": "0beb4a7",
   "stack": {
     "framework": "Next.js 16 App Router",
     "language": "TypeScript 5 (strict)",
@@ -37,18 +37,19 @@
     "moduleInventoryDoc": "docs/MODULE-INVENTORY.md (generirano prek 'bun run inventory' — ročno urejanje ni dovoljeno; R174: + Mobilno stolpec)",
     "validationMatrix": "docs/VALIDATION-MATRIX.md (generirano prek 'bun run matrix' — 17 zmožnosti: 9 iz epika §8 + 8 razširitev po realni kodi; vsak ✓ dokazni kanal = fs-verified sidro na realno testno datoteko; realni hardver/plačilo/zunanje storitve/pilot = ☐ ali N/A — anti-overclaim; brskalniški dokazi z rundnimi referencami P5/R172+; drift-gate: tests/unit/lib/validation-matrix.test.ts — commitana datoteka == buildMatrixDoc(), sidra fail-closed) — P0 korak 8 R178",
     "danesCockpit": "P0-01 (R175): modul 'danes' (analytics, groupOrder 0, view_reports, core) — operativni kokpit, ki odgovarja na 9 vprašanj iz P0-01: kompozicija 7 OBSTOJEČIH endpointov (operational-alerts, kitchen, dashboard, cash-register, reservations?upcoming, inventory/menu-stock, outbox) — brez nove API površine, brez izmišljenih metrik; priorite P0-01: ① aktivno stanje (KPI vrstica) ② izjeme z deep-linki (setActiveModule) ③ pregled (smena/rezervacije/zaloge/sistem); landing = 'danes' ob prvem vstopu za admin/manager/view_reports (page.tsx; R176: iz resolveWorkspaceForUser), operativni liki ostanejo na 'orders', kiosk/prodajni način se ne preusmerja",
-    "roleWorkspaces": "P0-02 (R176): 4 workspaces (waiter/kitchen/manager/admin) v registry.ts — vir resnice WORKSPACES + ROLE_TO_WORKSPACE (dvosmerno ≡ prisma EmployeeRole enum: admin/manager/staff/chef/kitchen) + resolveWorkspaceForUser (permission fallback za nestandardne role); landing iz workspace.landing (page.tsx): admin/manager/view_reports → danes (P0-01 kanon), chef/kitchen → kitchen KDS (NOVO), staff → orders (no-op); CommandPalette: primarna pot (workspace.path) na vrhu Moduli skupine + glava z workspace labeo (workspace.* i18n ×5); path je SODEBNIK navigacije, dostop ostaja canAccessModule"
+    "roleWorkspaces": "P0-02 (R176): 4 workspaces (waiter/kitchen/manager/admin) v registry.ts — vir resnice WORKSPACES + ROLE_TO_WORKSPACE (dvosmerno ≡ prisma EmployeeRole enum: admin/manager/staff/chef/kitchen) + resolveWorkspaceForUser (permission fallback za nestandardne role); landing iz workspace.landing (page.tsx): admin/manager/view_reports → danes (P0-01 kanon), chef/kitchen → kitchen KDS (NOVO), staff → orders (no-op); CommandPalette: primarna pot (workspace.path) na vrhu Moduli skupine + glava z workspace labeo (workspace.* i18n ×5); path je SODEBNIK navigacije, dostop ostaja canAccessModule",
+    "businessChain": "P0 korak 10 (R180): docs/BUSINESS-CHAIN.md (generirano prek 'bun run chain') — celotna podatkovna veriga menu → recipe → order → KDS → stock → waste → procurement → supplier → cost → finance/reporting razčlenjena na 14 dejstev (11 iz epika §10 tabela + cash-shift/stocktake/audit-infra razširitvi po realni kodi), vsako z source of truth → writers → readers → derived values → audit; VSAKA trditev fail-closed sidrana (Prisma modeli ≡ schema regex, route fajli ≡ existsSync, audit akcije ≡ src/ scan, moduli ≡ §6 register); arhitekturna tveganja A0–A9: A1 ročna založna transakcija → R106 kanon (createManualStockTransaction: skupni lock + tx-fresh re-read + pogojni decrement + FEFO — konec stale-read/clamp-to-0 družine) + A8 2 audit pisca → createAuditLog hash veriga REŠENA; A2 divergentne ključavnice + A3 recalculateAffectedChecks brez tx/lock + A6 trojni pisec smene + A7 podvojena derivacija plačilnega statusa DOKUMENTIRANA kot P1 kandidati; drift-gate: tests/unit/lib/business-chain.test.ts (24 testov: commitana datoteka == buildBusinessChainDoc(), fs-pini kanona + negativni pini starega stanja)"
   },
   "testEvidence": {
     "evidenceSource": "docs/PRODUCTION-VALIDATION.md §2 (CI-log-izpeljano, file-based)",
-    "unit": { "files": 293, "tests": 5339 },
+    "unit": { "files": 294, "tests": 5363 },
     "unitSecuritySuite": { "files": 100, "tests": 1949 },
-    "unitTotalWithSecurity": 5339,
+    "unitTotalWithSecurity": 5363,
     "integration": { "files": 23, "tests": 235 },
     "e2ePlaywright": { "passed": 234, "skipped": 4 },
     "e2eSecurity": 96,
     "ciVerification": "lokalna vrata ×2 (R172) = vir unit/integration števil; CI run za trenutni HEAD potrdi enaka vrata ob pushu (vitest štetje je deterministično na istem drevesu)",
-    "ciLastFileBasedProof": "HEAD 6f38d77 (R178) — CI run 36736765685: 10/10 check-runs success attempt=1 (Unit 292f/5325 = vključno security podmnožica 100f/1949 po R177-d semantiki, Integration 23f/235, E2E 234 passed/4 skipped — core-flow GOLDEN PATH §7 22/22 na realnem PG, webauthn 3/3) + E2E run 36736765735 + E2E Security 96 + Monitor ×2 (36737786751, 36737314344), vsi success; R179 doda 1f/14 (doc-truth gate) → lokalna vrata 293f/5339 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R179)",
+    "ciLastFileBasedProof": "HEAD 0beb4a7 (R179) — CI run 36742954518: 8/8 check-runs success attempt=1 (Unit 293f/5339 = vključno security podmnožica 100f/1949 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration — vsi success) + E2E run 36742954582 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); R180 doda 1f/24 (business-chain drift-gate) → lokalna vrata 294f/5363 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R180)",
     "verifyFeatures": "30/30 (npx tsx scripts/verify-features.ts)"
   },
   "deployedEnvironment": {

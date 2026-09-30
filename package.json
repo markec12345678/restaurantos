@@ -37,7 +37,8 @@
     "db:encrypt-secrets": "bun run scripts/migrate-encrypt-secrets.ts",
     "furs:check": "bash scripts/furs-test-connection.sh",
     "fina:check": "bash scripts/cis-test-connection.sh",
-    "matrix": "npx tsx scripts/generate-validation-matrix.ts"
+    "matrix": "npx tsx scripts/generate-validation-matrix.ts",
+    "chain": "npx tsx scripts/generate-business-chain.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",

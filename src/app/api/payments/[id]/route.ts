@@ -1,6 +1,6 @@
 
 // Shema za delno posodabljanje plačila (vsa polja opcijska)
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
@@ -142,34 +142,33 @@ export async function PUT(
     const auditEmployeeId = data.employeeId || authResult.session?.employeeId || null
 
     // PAYMENT AUDIT: helper — zapiši audit log (best-effort, ne podre posodobitve)
+    // R180 (epik #144 §10-A8): prej direktEn db.auditLog.create BREZ hash verige —
+    // zdaj createAuditLog kanon (SHA-256 previousHash/chainHash, PCI DSS + FURS).
     const writeAuditLog = async (after: Record<string, unknown>) => {
       try {
-        await db.auditLog.create({
-          data: {
-            userId: auditEmployeeId,
-            action: 'UPDATE_PAYMENT',
-            entityType: 'Payment',
-            entityId: id,
-            // FIX R81 (tenant model): lokacija plačila prek check.order.locationId
-            // (Payment nima lastnega locationId); fallback = seja.
-            locationId: existingPayment.check.order.locationId ?? authResult.session?.locationId ?? null,
-            details: JSON.stringify({
-              changedFields: Object.keys(updateData),
-              before: beforeSnapshot,
-              after: Object.fromEntries(
-                Object.keys(updateData).map(k => [k, (after as Record<string, unknown>)[k] ?? null])
-              ),
-              statusTransition: updateData.status
-                ? `${existingPayment.status} → ${String(updateData.status)}`
-                : null,
-              reversalApplied: !!isRefundOrVoid,
-              // R144-b: forenzika darilne kartice ob reverzu (void) — samo ID
-              // (cardNumber je spendable secret, NIKOLI v audit); ID poveže
-              // vrstico z GiftCard ledger/audit sledjo.
-              giftCardId: existingPayment.giftCardId ?? null,
-              loyaltyAccountId: existingPayment.loyaltyAccountId ?? null,
-            }),
-            ipAddress: '',
+        await createAuditLog({
+          userId: auditEmployeeId ?? undefined,
+          action: 'UPDATE_PAYMENT',
+          entityType: 'Payment',
+          entityId: id,
+          // FIX R81 (tenant model): lokacija plačila prek check.order.locationId
+          // (Payment nima lastnega locationId); fallback = seja.
+          locationId: existingPayment.check.order.locationId ?? authResult.session?.locationId ?? null,
+          details: {
+            changedFields: Object.keys(updateData),
+            before: beforeSnapshot,
+            after: Object.fromEntries(
+              Object.keys(updateData).map(k => [k, (after as Record<string, unknown>)[k] ?? null])
+            ),
+            statusTransition: updateData.status
+              ? `${existingPayment.status} → ${String(updateData.status)}`
+              : null,
+            reversalApplied: !!isRefundOrVoid,
+            // R144-b: forenzika darilne kartice ob reverzu (void) — samo ID
+            // (cardNumber je spendable secret, NIKOLI v audit); ID poveže
+            // vrstico z GiftCard ledger/audit sledjo.
+            giftCardId: existingPayment.giftCardId ?? null,
+            loyaltyAccountId: existingPayment.loyaltyAccountId ?? null,
           },
         })
       } catch (auditErr) {
