@@ -17,8 +17,8 @@
   "versionSource": "package.json",
   "statusDocVersion": 1,
   "statusUpdated": "2026-09-30",
-  "statusUpdatedRound": "R181 (issue #144, P1 faza: A3/CK-5 — POST /api/checks pisalni kanon: create + link + recalc izvornih čekov (recalculateAffectedChecksInTx) VSE v enem $transaction(Serializable) pod advisory locks v fiksnem vrstnem redu (order-write → sorted raw checkId, pariteta R108/R109 in plačilnih poti) + tx-fresh re-read naročila/artiklov + tx-fresh guard proti plačanim čekom + CAS updateMany; error kontrakt P2002/P2034 → 409 + structuredErrorResponse v POST ruti; BUSINESS-CHAIN A3 🟡→✅ REŠENO R181; drift-gate tests/unit/security/r181-checks-post-kanon.test.ts 14 testov z negativnimi pini starega db-client read-modify-write vzorca)",
-  "headCommitAtStatus": "7e228dc",
+  "statusUpdatedRound": "R182 (issue #144, P1 faza: A2 — enoten zaloga lock kanon: acquireInvStockLocks (src/lib/stock-deduction/locks.ts — sortirano, dedup, listi grafa za entitetnima ključavnica order-write/stock-return/poId, null-safe) v treh do sedaj divergentnih tokovih — sale deduction (deduct-order: pre-pass resolucija artiklov po CAS claimu, pred mutacijami), return-stock (snapshot + legacy pot, za stock-return entitetno ključavnico) in PO receive (receivePurchaseOrderItems: po poId ključavnici, pred item zanko); stock-mutations re-export = enoten vir R106 ključa inv-stock:<itemId> — odpis/prilagoditev/restock/waste/stocktake/batch + prevzem + prodaja + vračilo v ENOTNEM lock vesoljju; brez izolacijskih sprememb — pogojni updateMany gte ostane obrambna globina (Serializable na vroči prodajni poti bi DODAL P2034 retry-noise); BUSINESS-CHAIN A2 🟡→✅ REŠENO R182; drift-gate tests/unit/security/r182-stock-lock-canon.test.ts 13 testov z negativnimi pini divergentnega vzorca)",
+  "headCommitAtStatus": "46150bc",
   "stack": {
     "framework": "Next.js 16 App Router",
     "language": "TypeScript 5 (strict)",
@@ -42,14 +42,14 @@
   },
   "testEvidence": {
     "evidenceSource": "docs/PRODUCTION-VALIDATION.md §2 (CI-log-izpeljano, file-based)",
-    "unit": { "files": 295, "tests": 5377 },
+    "unit": { "files": 296, "tests": 5391 },
     "unitSecuritySuite": { "files": 100, "tests": 1949 },
-    "unitTotalWithSecurity": 5377,
+    "unitTotalWithSecurity": 5391,
     "integration": { "files": 23, "tests": 235 },
     "e2ePlaywright": { "passed": 234, "skipped": 4 },
     "e2eSecurity": 96,
     "ciVerification": "lokalna vrata ×2 (R172) = vir unit/integration števil; CI run za trenutni HEAD potrdi enaka vrata ob pushu (vitest štetje je deterministično na istem drevesu)",
-    "ciLastFileBasedProof": "HEAD 7e228dc (R180-b2) — CI run 36755371246: 7/7 jobov success attempt=1 (Unit 294f/5363 = vključno security podmnožica 100f/1949 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration, Security Audit) + Monitor ×2 success + E2E run 36755371240 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); R181 doda 1f/14 (CK-5 POST-checks kanon drift-gate) → lokalna vrata 295f/5377 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R181)",
+    "ciLastFileBasedProof": "HEAD 46150bc (R181) — CI run 36763362891: 7/7 jobov success attempt=1 (Unit 295f/5377 = vključno security podmnožica 100f/1949 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration, Security Audit) + Monitor ×2 success + E2E run 36763362950 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); R182 doda 1f/13 (A2 enoten zaloga lock kanon drift-gate) → lokalna vrata 296f/5391 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R182)",
     "verifyFeatures": "30/30 (npx tsx scripts/verify-features.ts)"
   },
   "deployedEnvironment": {

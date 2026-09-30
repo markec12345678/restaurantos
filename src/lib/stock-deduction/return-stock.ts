@@ -26,12 +26,20 @@
 //      Fallback na staro (receptno) logiko SAMO za legacy naročila brez
 //      sale vrstic (pred uvedbo movement log-a).
 //
+// R182 (A2 — docs/BUSINESS-CHAIN.md): poleg entitetne ključavnice
+// 'stock-return:<orderId>' vračilo ZDAJ pridobi tudi R106 per-item
+// ključavnice 'inv-stock:<itemId>' (acquireInvStockLocks — sortirano,
+// dedup, listi grafa) za VSE vračane artikle, PRED mutacijami. Prej:
+// vračilo je tekmovalo z odpisom/waste/prevzemom/prodajo na istem artiklu
+// (preplet revizijskih vrstic + SSI abort-noise). Brez izolacijskih
+// sprememb — pisalna izključitev = advisory lock; atomic increment ostane.
 
 import { db } from '../db'
 import { toNum, round2, multiply, subtract } from '../decimal'
 import type { StockDeductionResult } from './types'
 import { restoreBatchesFromAllocations } from './batch-allocation'
 import { rawFromUsable } from '../recipes/yield'
+import { acquireInvStockLocks } from './locks'
 import { Prisma } from '@prisma/client'
 
 type TransactionClient = Prisma.TransactionClient
@@ -91,6 +99,11 @@ export async function returnStockForOrder(
     }
 
     if (deductedByItem.size > 0) {
+      // R182 (A2): inv-stock ključavnice za VSE vračane artikle — PRED
+      // mutacijami, sortirano + dedup (listi grafa za 'stock-return:'
+      // entitetno ključavnico zgoraj).
+      await acquireInvStockLocks(client, [...deductedByItem.keys()])
+
       // Mirror return — točno nasprotje dedukcije (snapshot semantika)
       for (const [inventoryItemId, qtyToReturn] of deductedByItem) {
         const invItem = await client.inventoryItem.findUnique({
@@ -157,6 +170,29 @@ export async function returnStockForOrder(
     const orderItems = await client.orderItem.findMany({
       where: { orderId, voided: false },
     })
+
+    // R182 (A2): pre-pass resolucija + inv-stock ključavnice (mirror legacy
+    // resolucije spodaj: recipeItems po menuItemId / direct findFirst +
+    // servingsPerUnit > 0).
+    const legacyInvItemIds = new Set<string>()
+    for (const oi of orderItems) {
+      const recipeItems = await client.recipeItem.findMany({
+        where: { menuItemId: oi.menuItemId },
+      })
+      if (recipeItems.length > 0) {
+        for (const recipe of recipeItems) legacyInvItemIds.add(recipe.inventoryItemId)
+      } else {
+        // P1-7: zoži na lokacijo naročila (InventoryItem je per-lokacija)
+        const invItem = await client.inventoryItem.findFirst({
+          where: {
+            menuItemId: oi.menuItemId,
+            ...(order.locationId ? { locationId: order.locationId } : {}),
+          },
+        })
+        if (invItem && toNum(invItem.servingsPerUnit) > 0) legacyInvItemIds.add(invItem.id)
+      }
+    }
+    await acquireInvStockLocks(client, [...legacyInvItemIds])
 
     for (const oi of orderItems) {
       // 1. RecipeItem (večsastavni recepti)

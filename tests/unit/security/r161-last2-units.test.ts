@@ -105,6 +105,10 @@ function makeTx() {
     recipeItem: {
       findMany: vi.fn(async () => []), // → direct pot
     },
+    // R182 (A2): inv-stock ključavnice (acquireInvStockLocks) — v trap DB
+    // no-op (advisory lock semantika je pripeta v r182-stock-lock-canon);
+    // trap pina WHERE-guarde, ne ključavnic.
+    $executeRaw: vi.fn(async () => 0),
     inventoryItem: {
       findFirst: vi.fn(async (args: Record<string, unknown>) => {
         trap.captured.invFindFirst.push(args)

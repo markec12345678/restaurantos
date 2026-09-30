@@ -42,6 +42,7 @@
 //      throw-i iz tx teles + structuredErrorResponse (canonical).
 
 import { db } from '@/lib/db'
+import { acquireInvStockLocks } from '@/lib/stock-deduction/locks'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
@@ -146,6 +147,20 @@ export async function receivePurchaseOrderItems(opts: {
     if (po.status === 'cancelled') {
       throw { error: 'Naročila ni mogoče prevzeti — je preklicano', status: 400 }
     }
+
+    // R182 (A2): per-item zaloga ključavnice — prevzem mutira
+    // InventoryItem.quantity (increment) prek ISTEGA R106 ključa kot
+    // odpis/waste/prodaja/vračilo. Sortirano + dedup, POI entitetni
+    // ključavnici (poId zgoraj) → listi lock grafa. Prej: 'hashtext(poId)'
+    // je serializiral samo prevzeme ISTEGA PO — prevzem ∥ odpis na istem
+    // artiklu se nista serializirala (A2 divergenca). Null inventoryItemId
+    // (postavka brez zalogovne povezave) acquireInvStockLocks tiho preskoči.
+    await acquireInvStockLocks(
+      tx,
+      po.items
+        .filter((i) => receivedItems.some((ri) => ri.itemId === i.id))
+        .map((i) => i.inventoryItemId),
+    )
 
     // R132 (epic #115 P1-12): GRN linije se zbirajo med zanko (snapshot iz
     // tx-fresh PO postavke) — dokument se ustvari PO uspešnem item roll-upu.

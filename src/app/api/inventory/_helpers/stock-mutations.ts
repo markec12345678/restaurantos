@@ -45,6 +45,7 @@ import { db } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { toNum, round2, multiply, divide, isPositive } from '@/lib/decimal'
 import { recordBatchConsumption, recordBatchReceipt } from '@/lib/stock-deduction/batch-allocation'
+import { inventoryStockLockKey } from '@/lib/stock-deduction/locks'
 
 export interface RestockBatchInput {
   lotNumber: string
@@ -59,10 +60,11 @@ export interface StockMutationResult {
   transaction: Record<string, unknown> | null
 }
 
-/** R106: skupni per-item lock ključ — serializira VSE zalogovne pisalne poti. */
-export function inventoryStockLockKey(inventoryItemId: string): string {
-  return `inv-stock:${inventoryItemId}`
-}
+// R182 (A2): definicija ključa + acquireInvStockLocks živita v
+// src/lib/stock-deduction/locks.ts (enoten vir, lib plast — brez app↔lib
+// ciklov); ta modul ključ re-exportira za obstoječe konzumente
+// (waste, stocktakes, batch-preparations).
+export { inventoryStockLockKey }
 
 const TX_OPTS = {
   isolationLevel: Prisma.TransactionIsolationLevel.Serializable,

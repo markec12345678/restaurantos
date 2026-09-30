@@ -54,6 +54,16 @@ function createTxSpy() {
         return { count: 1 }
       }),
     },
+    // R182 (A2): pre-pass resolucija artiklov — prazna receptura + null
+    // direct zadetek → ta scenarij nima zalogovnih ključavnic (mutacije so
+    // mockani podmoduli; runtime red claim→locks→mutacije pina r182 test).
+    recipeItem: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    inventoryItem: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
     stockTransaction: {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),

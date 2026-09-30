@@ -206,6 +206,13 @@ describe('BUSINESS-CHAIN — anti-overclaim (epic #144 kanon)', () => {
     expect(committedDoc).not.toContain('A3 🟡')
   })
 
+  it('A2 je dokumentiran kot REŠENO R182 (enoten inv-stock lock kanon; drift-gate na rešitev, ne na težavo)', () => {
+    expect(committedDoc).toContain('A2')
+    expect(committedDoc).toContain('REŠENO R182')
+    expect(committedDoc).toContain('acquireInvStockLocks')
+    expect(committedDoc).not.toContain('A2 🟡')
+  })
+
   it('dokument je strukturna verifikacija, NE produkcijska validacija', () => {
     expect(committedDoc).toContain('NE produkcijska validacija')
     expect(committedDoc).not.toContain('produkcijsko validiran')

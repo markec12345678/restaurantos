@@ -221,8 +221,12 @@ describe('R105 A: POST receive — Serializable tx + advisory lock + tx-fresh', 
       receivedItems: [{ itemId: 'poi-1', quantityReceived: 10 }],
     }), params(PO_ID))
     expect(res.status).toBe(200)
-    expect(mocks.txExecuteRaw).toHaveBeenCalledTimes(1)
+    // R182 (A2): 2 raw klica — poId entitetna ključavnica + inv-stock list
+    // ('inv-stock:inv-1', po entitetni, pred item zanko)
+    expect(mocks.txExecuteRaw).toHaveBeenCalledTimes(2)
     expect(String(mocks.txExecuteRaw.mock.calls[0][0])).toContain('pg_advisory_xact_lock')
+    expect(String(mocks.txExecuteRaw.mock.calls[0][1])).toBe(PO_ID)
+    expect(String(mocks.txExecuteRaw.mock.calls[1][1])).toBe('inv-stock:inv-1')
     expect(mocks.transaction).toHaveBeenCalledWith(
       expect.any(Function),
       expect.objectContaining({ isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
@@ -392,7 +396,9 @@ describe('R105 B: PUT action=receive — isti kanon (prej stale + brez guard-a)'
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.success).toBe(true)
-    expect(mocks.txExecuteRaw).toHaveBeenCalledTimes(1)
+    // R182 (A2): 2 raw klica — poId + inv-stock list (kanon zgoraj v A1)
+    expect(mocks.txExecuteRaw).toHaveBeenCalledTimes(2)
+    expect(String(mocks.txExecuteRaw.mock.calls[1][1])).toBe('inv-stock:inv-1')
     expect(mocks.txPoFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ id: PO_ID, locationId: LOC_A }) })
     )
