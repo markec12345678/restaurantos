@@ -31,6 +31,7 @@
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "verify": "npx tsx scripts/verify-features.ts",
+    "inventory": "npx tsx scripts/generate-module-inventory.ts",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:verify": "node scripts/verify-db.mjs",
     "db:encrypt-secrets": "bun run scripts/migrate-encrypt-secrets.ts",

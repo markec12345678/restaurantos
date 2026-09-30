@@ -26,6 +26,9 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import { navItems } from '@/components/pos/sidebar/navItems'
+// §6 (epic #144, R173): centralni modulni register — vlogovna vrata palete
+import { canAccessModule } from '@/lib/modules/registry'
+import { useAuthUser } from '@/components/pos/sidebar/useAuthUser'
 import { isModuleAllowed, resolveAllowedModules } from '@/lib/sales-mode'
 import { usePOSStore } from '@/lib/store'
 import { useRecentsStore } from '@/lib/recents-store'
@@ -188,6 +191,10 @@ export function CommandPalette() {
   const restricted = salesMode || kioskMode
   const allowedModules = resolveAllowedModules(salesMode, kioskAllowedModules)
 
+  // §6 (R173): isti vir uporabnika kot Sidebar (useAuthUser) — canAccessModule
+  // filter uveljavlja vlogovna vrata TUDI v paleti (prej: samo sidebar)
+  const authUser = useAuthUser()
+
   // RUNDA 41: okno upodabljanja Artiklov — 437+ artiklov = 5000+ DOM vozlišč
   // (merjeno 509 cmdk-itemov / 5302 vozlišča na prod), kar upočasni odpiranje
   // na slabših tablicah. SELF-FILTER (substring po imenu/kategoriji/opisu/
@@ -289,6 +296,7 @@ export function CommandPalette() {
   const navCommands: CommandNav[] = navItems
     .filter((item) => item.id !== activeModule) // skrij trenutni
     .filter((item) => !restricted || isModuleAllowed(item.id, allowedModules))
+    .filter((item) => canAccessModule(authUser, item.id))
     .map((item) => ({
       id: item.id,
       label: t(item.labelKey),
