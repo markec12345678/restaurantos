@@ -25,9 +25,20 @@ export interface PrefetchConfig {
  * za ta modul začnejo nalagati še preden se komponenta montira.
  */
 export const modulePrefetchMap: Record<ModuleName, PrefetchConfig[]> = {
+  // R175 (epic #144 P0-01): Danes kokpit — kompozicija istih endpointov kot
+  // DanesCockpit (kitchen/dashboard/cashRegister share cache z moduli; alerts/
+  // menu-stock/outbox imajo lastne ['cockpit', …] ključe — prefetch greš samo
+  // za deljene, da ne ustvarimo podvojenih klicev).
+  // FIX (R175): odstranjen MRTVI vnos /api/orders/stats iz dashboard — ruta ne
+  // obstaja (404) in ključa queryKeys.orders.stats ne konzumira nihče.
   dashboard: [
     { queryKeys: queryKeys.dashboard.all, endpoint: '/api/dashboard' },
-    { queryKeys: queryKeys.orders.stats, endpoint: '/api/orders/stats' },
+  ],
+  danes: [
+    { queryKeys: queryKeys.kitchen.all, endpoint: '/api/kitchen' },
+    { queryKeys: queryKeys.dashboard.all, endpoint: '/api/dashboard' },
+    { queryKeys: queryKeys.cashRegister.all, endpoint: '/api/cash-register' },
+    { queryKeys: [...queryKeys.reservations.all, 'upcoming'], endpoint: '/api/reservations?upcoming=true' },
   ],
   orders: [
     { queryKeys: queryKeys.orders.all, endpoint: '/api/orders' },

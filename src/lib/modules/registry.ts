@@ -36,6 +36,9 @@
 //     ghost-kitchen) = false — invarianta: mobile:false ⇒ adminOnly || long-tail.
 //   - NavGroup.label i18n: MODULE_GROUPS.labelKey (nav.group.*) ×5 jezikov;
 //     SidebarNav renderira t(labelKey) — SL label ostane fallback/drift-pin.
+// P0-01 (epic #144, R175): modul 'danes' (Danes kokpit) = 76. modul — landing
+//   operativno stanje za like z view_reports (page.tsx: privzeti activeModule
+//   'orders' → 'danes' ob prvem vstopu za admin/manager/view_reports).
 // ============================================
 
 export type ModuleGroupId =
@@ -168,6 +171,11 @@ const RAW_MODULES: readonly RawModule[] = [
   { id: 'feedback', labelKey: 'nav.feedback', icon: 'MessageSquare', group: 'guests', permission: 'take_orders', priority: 'secondary', relatedModules: ['guests', 'customer-timeline'] },
   { id: 'reports', labelKey: 'nav.reports', icon: 'BarChart3', group: 'analytics', groupOrder: 3, permission: 'view_reports', priority: 'core', relatedModules: ['dashboard', 'tax-report', 'profit-loss'] },
   { id: 'advanced-analytics', labelKey: 'nav.advancedAnalytics', icon: 'TrendingUp', group: 'analytics', groupOrder: 4, permission: 'view_reports', priority: 'long-tail', relatedModules: ['reports', 'ai-forecast'] },
+  // P0-01 (epic #144, R175): Danes kokpit — landing operativno stanje (9 vprašanj):
+  // zdaj/izjeme/prodano/kuhinja/mize/smena/rezervacije/zaloge/okvare.
+  // Kompozicija obstoječih endpointov (brez nove API površine) + deep-linki
+  // v module (setActiveModule). groupOrder 0 = prvi v ANALITIKA (pred briefing).
+  { id: 'danes', labelKey: 'nav.danes', icon: 'Home', group: 'analytics', groupOrder: 0, permission: 'view_reports', priority: 'core', relatedModules: ['orders', 'kitchen', 'tables', 'cash-register'] },
   { id: 'briefing', labelKey: 'nav.briefing', icon: 'Sunrise', group: 'analytics', groupOrder: 1, permission: 'view_reports', priority: 'secondary', relatedModules: ['dashboard', 'reports'] },
   { id: 'devices', labelKey: 'nav.devices', icon: 'MonitorSmartphone', group: 'system', groupOrder: 4, permission: 'view_reports', priority: 'long-tail', relatedModules: ['locations'] },
   { id: 'data-portability', labelKey: 'nav.dataPortability', icon: 'DatabaseBackup', group: 'system', groupOrder: 5, adminOnly: true, mobile: false, priority: 'long-tail', relatedModules: ['settings'] },

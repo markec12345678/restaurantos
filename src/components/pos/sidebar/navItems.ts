@@ -29,6 +29,8 @@ import {
   ShieldAlert, Receipt, ClipboardCheck, BellRing, PieChart, Activity, Table2, CloudOff,
   CookingPot, Scale, Star, Trash2, Scale3d, Store, ShieldCheck, BookOpen, GitBranch, Nfc,
   Sunrise,
+  // R175 (epic #144 P0-01): Danes kokpit
+  Home,
   // R142-c (epic #115 #29): Center naprav
   MonitorSmartphone,
   // R147-c (epic #115 #34): Prenos podatkov
@@ -100,6 +102,7 @@ export const NAV_ICONS: Record<string, ComponentType<{ className?: string }>> = 
   BarChart3,
   TrendingUp,
   Sunrise,
+  Home,
   MonitorSmartphone,
   DatabaseBackup,
   SlidersHorizontal,

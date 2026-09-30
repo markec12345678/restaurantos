@@ -3,7 +3,7 @@
 // ============================================
 //
 // Izvira iz src/lib/modules/registry.ts (single source of truth) in
-// generira človeku berljiv inventar vseh 75 modulov.
+// generira človeku berljiv inventar vseh modulov (dinamično — R175: 76).
 //
 // DETERMINISTIČNO: brez timestampov / naključja — regeneracija na istem
 // drevesu je BITNIČNO ENAKA (gate: `bun run inventory && git diff --exit-code
@@ -39,11 +39,17 @@ const lines: string[] = []
 lines.push('# MODULE-INVENTORY (§6)')
 lines.push('')
 lines.push('> ⚙️ GENERIRANO z `scripts/generate-module-inventory.ts` (bun run inventory) — **NE urejati ročno**.')
-lines.push('> Vir resnice: `src/lib/modules/registry.ts` (75 modulov × §6 metadata).')
+lines.push(`> Vir resnice: \`src/lib/modules/registry.ts\` (${MODULE_REGISTRY.length} modulov × §6 metadata).`)
 lines.push('> Drift-gate: `tests/unit/lib/module-registry.test.ts` (register ≡ navItems ≡ moduleComponents ≡ i18n ×5).')
 lines.push('')
 
-lines.push('**75 modulov** · 7 skupin · 6 domen · 43 permission + 32 adminOnly · 12 core / 49 secondary / 14 long-tail')
+// R175: številke DINAMIČNO iz registerja (prej hardcodirane — drift-gate je ulovil 75-vs-76)
+const permCount = MODULE_REGISTRY.filter((m) => m.permission).length
+const adminOnlyCount = MODULE_REGISTRY.filter((m) => m.adminOnly === true).length
+const coreCount = MODULE_REGISTRY.filter((m) => m.priority === 'core').length
+const secondaryCount = MODULE_REGISTRY.filter((m) => m.priority === 'secondary').length
+const longTailCount = MODULE_REGISTRY.filter((m) => m.priority === 'long-tail').length
+lines.push(`**${MODULE_REGISTRY.length} modulov** · ${MODULE_GROUPS.length} skupin · 6 domen · ${permCount} permission + ${adminOnlyCount} adminOnly · ${coreCount} core / ${secondaryCount} secondary / ${longTailCount} long-tail`)
 lines.push('')
 
 for (const group of MODULE_GROUPS) {

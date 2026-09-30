@@ -12,10 +12,11 @@ import { CommandPalette } from '@/components/pos/command-palette/CommandPalette'
 import { KeyboardShortcutsDialog } from '@/components/pos/keyboard-shortcuts/KeyboardShortcutsDialog'
 import { KeyboardShortcutsHandler } from '@/components/pos/keyboard-shortcuts/KeyboardShortcutsHandler'
 import { NotificationCenter } from '@/components/pos/notification-center/NotificationCenter'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useModulePrefetch } from '@/lib/use-module-prefetch'
 import { moduleComponents, AIAssistant } from '@/app/components/module-registry'
 import { usePOSAuth } from '@/app/components/use-pos-auth'
+import { canAccessModule } from '@/lib/modules/registry'
 import { AuthLoadingScreen, AuthLoginScreen } from '@/app/components/auth-screens'
 import { ActiveModuleView } from '@/app/components/active-module-view'
 import { SetupRedirect } from '@/components/setup/setup-redirect'
@@ -31,6 +32,26 @@ export default function POSPage() {
   // Prednalaganje podatkov ob preklopu modula — hitrejši prehod za uporabnika
   useModulePrefetch(activeModule)
   const { authUser, setAuthUser, authChecked } = usePOSAuth()
+
+  // P0-01 (epic #144, R175): landing = Danes kokpit za like z vidnimi
+  // poročili (admin/manager/view_reports) — ob PRVEM vstopu in SAMO, če
+  // uporabnik še ni sam izbral modula (store default 'orders' ostane za
+  // operativne like: natakar/kuhar/blagajnik). Kiosk/prodajni način NE
+  // preusmerja (sank = brez admin površin, R153).
+  const landingApplied = useRef(false)
+  useEffect(() => {
+    if (!authUser) {
+      landingApplied.current = false
+      return
+    }
+    if (landingApplied.current) return
+    landingApplied.current = true
+    const canSeeReports = authUser.role === 'admin' || authUser.role === 'manager' || authUser.permissions.includes('view_reports')
+    if (!canSeeReports) return
+    const { kioskMode, salesMode, activeModule, setActiveModule } = usePOSStore.getState()
+    if (kioskMode || salesMode || activeModule !== 'orders') return
+    if (canAccessModule(authUser, 'danes')) setActiveModule('danes')
+  }, [authUser])
 
   // P2-UX FIX (stanje po refreshu/crashu): ročna rehidracija košarice/mize iz
   // localStorage PO prvi upodabitvi (skipHydration v store-u prepreči SSR mismatch)

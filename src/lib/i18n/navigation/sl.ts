@@ -72,6 +72,7 @@ export const navSl: Record<string, string> = {
   'nav.inventoryAlerts': 'Opozorila o zalogi',
   'nav.reorderCenter': 'Center naročil',
   // R141-c (epic #115 P2-28): dnevni pregled (manager briefing)
+  'nav.danes': 'Danes',
   'nav.briefing': 'Dnevni pregled',
   // R142-c (epic #115 #29): Center naprav
   'nav.devices': 'Naprave',

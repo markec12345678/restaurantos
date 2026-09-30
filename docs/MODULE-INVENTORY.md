@@ -1,10 +1,10 @@
 # MODULE-INVENTORY (§6)
 
 > ⚙️ GENERIRANO z `scripts/generate-module-inventory.ts` (bun run inventory) — **NE urejati ročno**.
-> Vir resnice: `src/lib/modules/registry.ts` (75 modulov × §6 metadata).
+> Vir resnice: `src/lib/modules/registry.ts` (76 modulov × §6 metadata).
 > Drift-gate: `tests/unit/lib/module-registry.test.ts` (register ≡ navItems ≡ moduleComponents ≡ i18n ×5).
 
-**75 modulov** · 7 skupin · 6 domen · 43 permission + 32 adminOnly · 12 core / 49 secondary / 14 long-tail
+**76 modulov** · 7 skupin · 6 domen · 44 permission + 32 adminOnly · 13 core / 49 secondary / 14 long-tail
 
 ## Prodaja (`sales` · domena: `sales` · 13)
 
@@ -74,7 +74,7 @@
 | `shift-overview` | Pregled izmene | manage_employees | secondary | ✓ | `staff-schedule`, `labor-reports` |
 | `labor-reports` | Poročila o delu | view_reports | secondary | ✓ | `staff-performance`, `shift-overview` |
 
-## Analitika (`analytics` · domena: `insight` · 12)
+## Analitika (`analytics` · domena: `insight` · 13)
 
 | Modul | Naziv (sl) | Dostop | Prioriteta | Mobilno | Povezani |
 |---|---|---|---|---|---|
@@ -85,6 +85,7 @@
 | `menu-engineering` | Menu Engineering | admin/manager | long-tail | ✓ | `menu`, `food-cost` |
 | `reports` | Poročila | view_reports | 🥇 core | ✓ | `dashboard`, `tax-report`, `profit-loss` |
 | `advanced-analytics` | Napredna analitika | view_reports | long-tail | ✓ | `reports`, `ai-forecast` |
+| `danes` | Danes | view_reports | 🥇 core | ✓ | `orders`, `kitchen`, `tables`, `cash-register` |
 | `briefing` | Dnevni pregled | view_reports | secondary | ✓ | `dashboard`, `reports` |
 | `ai-recommendations` | AI Priporočila | admin/manager | long-tail | ✓ | `ai-forecast` |
 | `profit-loss` | Poslovni izid | view_reports | secondary | ✓ | `reports`, `expenses`, `tax-report` |

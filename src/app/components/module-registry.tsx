@@ -95,6 +95,8 @@ const ReorderCenter = dynamic(() => import('@/components/pos/reorder/ReorderCent
 const DriverApp = dynamic(() => import('@/app/driver/DriverApp').then(m => ({ default: m.DriverApp })), { ssr: false, loading: () => loadingFallback })
 // R141-c (epic #115 P2-28): Dnevni pregled — manager briefing agregat (EN endpoint /api/reports/briefing)
 const BriefingModule = dynamic(() => import('@/components/pos/briefing/BriefingModule').then(m => ({ default: m.BriefingModule })), { ssr: false, loading: () => loadingFallback })
+// R175 (epic #144 P0-01): Danes kokpit — landing operativno stanje
+const DanesCockpit = dynamic(() => import('@/components/pos/danes/DanesCockpit').then(m => ({ default: m.DanesCockpit })), { ssr: false, loading: () => loadingFallback })
 // R142-c (epic #115 #29): Center naprav — inventar naprav (GET/PATCH /api/devices)
 const DevicesModule = dynamic(() => import('@/components/pos/devices/DevicesModule').then(m => ({ default: m.DevicesModule })), { ssr: false, loading: () => loadingFallback })
 // R147-c (epic #115 #34): Prenos podatkov — portability arhiv (GET /api/export/portability)
@@ -129,6 +131,8 @@ export const moduleComponents: Record<string, ComponentType> = {
   employees: EmployeeManager,
   reports: ReportsView,
   briefing: BriefingModule,
+  // R175 (epic #144 P0-01): Danes kokpit
+  danes: DanesCockpit,
   devices: DevicesModule,
   'data-portability': DataPortabilityModule,
   'advanced-analytics': AdvancedAnalyticsModule,

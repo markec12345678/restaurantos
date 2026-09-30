@@ -71,6 +71,7 @@ export const navIt: Record<string, string> = {
   'nav.inventoryAlerts': 'Avvisi inventario',
   'nav.reorderCenter': 'Centro riordini',
   // R141-c (epic #115 P2-28): dnevni pregled (manager briefing)
+  'nav.danes': 'Oggi',
   'nav.briefing': 'Riepilogo giornaliero',
   // R142-c (epic #115 #29): Center naprav
   'nav.devices': 'Dispositivi',
