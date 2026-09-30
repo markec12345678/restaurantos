@@ -40,14 +40,14 @@
   },
   "testEvidence": {
     "evidenceSource": "docs/PRODUCTION-VALIDATION.md §2 (CI-log-izpeljano, file-based)",
-    "unit": { "files": 290, "tests": 5251 },
+    "unit": { "files": 191, "tests": 3354 },
     "unitSecuritySuite": { "files": 100, "tests": 1949 },
-    "unitTotalWithSecurity": 7200,
+    "unitTotalWithSecurity": 5303,
     "integration": { "files": 23, "tests": 235 },
-    "e2ePlaywright": { "passed": 226, "skipped": 4 },
+    "e2ePlaywright": { "passed": 234, "skipped": 4 },
     "e2eSecurity": 88,
     "ciVerification": "lokalna vrata ×2 (R172) = vir unit/integration števil; CI run za trenutni HEAD potrdi enaka vrata ob pushu (vitest štetje je deterministično na istem drevesu)",
-    "ciLastFileBasedProof": "HEAD 2a1f485b — CI run 36639495807 (7/7 jobov, 7200 = 5251+1949, CI logi ANSI-stripped) + E2E + Monitor ×2, vsi success attempt=1; §2 tabelo dokumentira bb7d422f",
+    "ciLastFileBasedProof": "HEAD 1fa1717 (R177) — CI run 36725492462: 10/10 check-runs success (Unit 291f/5303 = 3354+1949, Integration 235, E2E 234 passed/4 skipped — core-flow GOLDEN PATH §7 22/22 na realnem PG, webauthn 3/3; prejšnji run 36723205927 @ 84a5267 je ujel webauthn R99-a regreso — popravljen v 1fa1717 z gp-cashier brez PIN-a) + E2E Security + Monitor ×2, vsi success; §2 tabelo dokumentira PRODUCTION-VALIDATION.md",
     "verifyFeatures": "30/30 (npx tsx scripts/verify-features.ts)"
   },
   "deployedEnvironment": {
