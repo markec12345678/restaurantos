@@ -165,18 +165,19 @@ export async function seedE2eData(executor, ctx) {
   // brez zaposlenega z locationId bi odpiranje padlo na SHIFT_LOCATION_REQUIRED.
   // Izmena MORA biti na loc-1, da živa statistika / zaprtje / Z-poročilo / EOD
   // poročilo vsebujejo naročilo iz Golden Path poti (table-1 @ loc-1).
-  // Prijava za ta račun ni potrebna (avtentikacija ostane test-admin), zapis
-  // je idempotenten (ON CONFLICT).
+  // ⚠️ PIN MORA OSTATI PRAZEN: /api/auth/employees?locationId=loc-1 filtrira
+  // `pin: { not: '' }` — webauthn spec (R99-a kontrakt) zahteva PRAZEN seznam
+  // zaposlenih na loc-1 (fail-open single-step prijavni zaslon). gp-cashier je
+  // servisni fixture (nima seje, ne prijavlja se — openShift potrebuje samo
+  // locationId izpeljavo), zato prazen PIN = neviden na prijavnem gridu.
+  // Zapis je idempotenten (ON CONFLICT).
   {
-    const gpin = '9999'
-    const gpinHash = await bcrypt.hash(gpin, 10)
-    const gpinLookup = createHmac('sha256', NEXTAUTH_SECRET).update(gpin).digest('hex')
     await run(`
     INSERT INTO "Employee" (id, name, email, phone, role, status, "hireDate", pin, "pinLookup", "locationId", "createdAt", "updatedAt")
-    VALUES ($1, $2, $3, $4, $5::"EmployeeRole", $6::"EmployeeStatus", NOW(), $7, $8, 'loc-1', NOW(), NOW())
-    ON CONFLICT (email) DO UPDATE SET pin = $7, "pinLookup" = $8, "locationId" = 'loc-1'
-  `, ['gp-cashier', 'GP Cashier', 'gp-cashier@e2e.test', '', 'manager', 'active', gpinHash, gpinLookup])
-    console.log('[seed] ✅ gp-cashier (loc-1, za Open Shift člen §7) seedan')
+    VALUES ($1, $2, $3, $4, $5::"EmployeeRole", $6::"EmployeeStatus", NOW(), '', '', 'loc-1', NOW(), NOW())
+    ON CONFLICT (email) DO UPDATE SET pin = '', "pinLookup" = '', "locationId" = 'loc-1'
+  `, ['gp-cashier', 'GP Cashier', 'gp-cashier@e2e.test', '', 'manager', 'active'])
+    console.log('[seed] ✅ gp-cashier (loc-1, brez PIN-a — Open Shift fixture §7) seedan')
   }
 
   // ═══ R92 FIX: MODEL A E2E fixture ids (mg-loc-1/2-1, sc-loc-1/2-1,

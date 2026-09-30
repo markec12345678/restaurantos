@@ -43,7 +43,8 @@
 //
 // Predpogoji (zagotovi jih playwright.config.ts webServer + seed):
 //   - test-admin / PIN 1111 (admin, brez lokacije — super-admin kanon)
-//   - gp-cashier @ loc-1 (R177 seed — lokacija blagajniške izmene)
+//   - gp-cashier @ loc-1 (R177 seed, brez PIN-a — lokacija blagajniške izmene;
+//     prazen PIN ohranja webauthn R99-a kontrakt: /api/auth/employees loc-1 = [])
 //   - loc-1, table-1, menu-1/cat-1, mi-1/mi-2
 //   - inv-kava (100 kos) + RecipeItem mi-1→inv-kava (1 kos/servis)
 //   - Modifier 'Ekstra sir' 1.5 na mg-loc-1-1 (mod-loc-1-2)
