@@ -450,9 +450,13 @@ describe('R104 D: fs-guardi — vir pini', () => {
     expect(confirmSrc.split("checkRateLimitAsync('qr-pay-confirm'").length - 1).toBe(1)
   })
 
-  it('close: NI več nepogojenega cashRegisterShift.update (double-close vrata zaprta)', () => {
+  it('close: NI več nepogojenega cashRegisterShift.update (double-close vrata zaprta; R185: kanon closeShiftCasIfOpen)', () => {
     expect(closeSrc).not.toMatch(/cashRegisterShift\.update\(\{/)
-    expect(closeSrc).toContain("where: { id, status: 'open' }")
+    // R185 (A6): CAS vrata { id, status: 'open' } živijo v skupnem kanonu
+    // closeShiftCasIfOpen (src/lib/cash-shift/close-shift-canon.ts) — ruta jih
+    // kliče, inline updateMany ne sme več obstajati
+    expect(closeSrc).toContain('closeShiftCasIfOpen')
+    expect(closeSrc).not.toMatch(/cashRegisterShift\s*\.\s*updateMany/)
     expect(closeSrc).toContain('SHIFT_ALREADY_CLOSED')
   })
 

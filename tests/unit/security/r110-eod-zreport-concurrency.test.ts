@@ -387,12 +387,15 @@ describe('R110 D: fs-pini — kanon pini v viru', () => {
   const routeSrc = readFileSync(
     join(process.cwd(), 'src/app/api/z-report/route.ts'), 'utf-8')
 
-  it('EOD closeShift: CAS updateMany (status open) prisoten, nepogojen update() odsoten', () => {
+  it('EOD closeShift: kanon closeShiftCasIfOpen (R185 A6), inline CAS in nepogojen update() odsoten', () => {
     expect(closeShiftSrc).toContain("status: 'open'")
-    expect(closeShiftSrc).toContain('updateMany')
-    expect(closeShiftSrc).toContain('casClose.count === 0')
-    // NEPOGOJEN update na izmeni ne sme obstajati (updateMany vsebuje ".update", 
-    // zato pinamo točno ".update(" za shift modelom)
+    // R185 (A6): inline pogojni updateMany (R110 EOD-1) je migriran v skupni
+    // kanon closeShiftCasIfOpen (src/lib/cash-shift/close-shift-canon.ts) —
+    // EN zapiralni pisec čez VSE tri rute (cash-register/[id], end-of-day,
+    // reports/eod)
+    expect(closeShiftSrc).toContain('closeShiftCasIfOpen')
+    expect(closeShiftSrc).not.toMatch(/cashRegisterShift\s*\.\s*updateMany/)
+    // NEPOGOJEN update na izmeni ne sme obstajati
     expect(closeShiftSrc).not.toMatch(/cashRegisterShift\.update\(/)
   })
 

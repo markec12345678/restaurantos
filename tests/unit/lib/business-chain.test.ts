@@ -221,6 +221,14 @@ describe('BUSINESS-CHAIN — anti-overclaim (epic #144 kanon)', () => {
     expect(committedDoc).not.toContain('A7 🟡')
   })
 
+  it('A6 je dokumentiran kot REŠENO R185 (enoten zapiralni kanon smene; drift-gate na rešitev, ne na težavo)', () => {
+    expect(committedDoc).toContain('A6')
+    expect(committedDoc).toContain('REŠENO R185')
+    expect(committedDoc).toContain('closeShiftCasIfOpen')
+    // stari odprto-tveganje opis ne sme več obstajati (negativni pin)
+    expect(committedDoc).not.toContain('A6 🟡')
+  })
+
   it('dokument je strukturna verifikacija, NE produkcijska validacija', () => {
     expect(committedDoc).toContain('NE produkcijska validacija')
     expect(committedDoc).not.toContain('produkcijsko validiran')

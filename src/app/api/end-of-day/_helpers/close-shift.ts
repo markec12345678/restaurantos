@@ -4,6 +4,7 @@ import { db, createAuditLog } from '@/lib/db'
 import { toNum, sumBy, round2, add, subtract } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
 import { createScheduledEmailLog } from '@/lib/email'
+import { closeShiftCasIfOpen } from '@/lib/cash-shift/close-shift-canon'
 
 // ─── Zaključi izmeno (POST transakcija) ─────────────────────
 
@@ -85,32 +86,29 @@ export async function closeShift(
     // drugi EOD je PREPIŠAL finančne agregate prvega (cashSales/expectedCash/
     // cashDifference iz DRUGAČNEGA snapshot-a plačil = last-writer-wins na
     // Z-poročilu), DUPLICIRAL EOD_COMPLETED audit log in DVAKRAT sprožil
-    // finalizacijo Z-poročila. Sedaj: pogojni updateMany
-    // (where { id, status: 'open' }) je avtoritativna vrata — samo PRVI EOD
-    // preide (count=1); konkurenčni EOD dobi count=0 → return null → ruta
+    // finalizacijo Z-poročila.
+    // FIX R185 (A6 kanon): inline pogojni updateMany (R110 EOD-1) je zamenjan
+    // s skupnim kanonom closeShiftCasIfOpen — EN zapiralni pisec čez VSE tri
+    // rute (cash-register/[id], end-of-day closeShift, reports/eod
+    // closeShiftTransaction). Pogodba ostane: count 0 → return null → ruta
     // spoštljivo javi "izmena že zaprta" (idempotentna veja, brez dup audit/
-    // finalize). Vzorec: R100 atomic counter CAS / R104 C1 parity.
-    const casClose = await tx.cashRegisterShift.updateMany({
-      where: { id: activeShift.id, status: 'open' },
-      data: {
-        closedAt: new Date(),
-        closingCash,
-        expectedCash,
-        cashDifference,
-        cashSales,
-        cardSales,
-        mobileSales,
-        alternateSales,
-        totalSales,
-        totalOrders,
-        totalDiscounts,
-        totalTips,
-        totalVoided,
-        notes: notes || '',
-        status: 'closed',
-      },
+    // finalize).
+    const closed = await closeShiftCasIfOpen(tx, activeShift.id, {
+      closingCash,
+      expectedCash,
+      cashDifference,
+      cashSales,
+      cardSales,
+      mobileSales,
+      alternateSales,
+      totalSales,
+      totalOrders,
+      totalDiscounts,
+      totalTips,
+      totalVoided,
+      notes: notes || '',
     })
-    if (casClose.count === 0) {
+    if (!closed) {
       // IZGUBLJENA tekma: izmena je bila zaprta med branjem in pisanjem.
       // return null = ista pogodba kot "ni odprte izmene" — ruta ne piše
       // audit loga ne finalizira Z-poročila za tuj (že stari) zaključek.

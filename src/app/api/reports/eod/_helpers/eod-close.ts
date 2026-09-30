@@ -2,6 +2,7 @@
 
 import { db, createAuditLog } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
+import { closeShiftCasIfOpen, SHIFT_ALREADY_CLOSED } from '@/lib/cash-shift/close-shift-canon'
 
 export interface EodCloseResult {
   totalSales: number
@@ -116,7 +117,7 @@ export async function closeShiftTransaction(
   await db.$transaction(async (tx) => {
     const shiftToClose = await tx.cashRegisterShift.findUnique({ where: { id: activeShiftId } })
     if (!shiftToClose) throw new Error('SHIFT_NOT_FOUND')
-    if (shiftToClose.status === 'closed') throw new Error('SHIFT_ALREADY_CLOSED')
+    if (shiftToClose.status === 'closed') throw new Error(SHIFT_ALREADY_CLOSED)
     // FIX R84-1 HIGH: defense-in-depth — tudi če bi findFirst zgoraj vrnil tujjo
     // izmeno (race), transakcija zavrne zaprtje čez-tenant izmene. STROGO:
     // lokacijski admin sme zapreti IZKLJUČNO izmeno s popolnoma ujemajočo
@@ -125,18 +126,32 @@ export async function closeShiftTransaction(
       throw new Error('SHIFT_NOT_FOUND')
     }
 
-    await tx.cashRegisterShift.update({
-      where: { id: activeShiftId },
-      data: {
-        status: 'closed', closedAt: new Date(),
-        closingCash: data.actualClosingCash, expectedCash: data.expectedCash, cashDifference: data.cashDifference,
-        cashSales: data.cashSales, cardSales: data.cardSales, mobileSales: data.mobileSales, alternateSales: data.alternateSales,
-        totalSales: data.totalSales, totalOrders: data.completedOrdersCount,
-        totalDiscounts: data.totalDiscounts, totalTips: data.totalTips,
-        totalVoided: data.totalVoided,
-        notes: data.notes || undefined,
-      },
+    // FIX R185 (A6 kanon): prej NEPOGOJEN update({ where: { id } }) z read-check
+    // (TOCTOU double-close pod READ COMMITTED — isti razred kot R104 C1 / R110
+    // EOD-1; R110 je popravil end-of-day closeShift, TA pisec pa je ostal
+    // divergenten: dva sočasna POST /api/reports/eod → obadva prebereta 'open'
+    // → last-writer-wins na finančnih agregatih + dup audit log).
+    // Zdaj: skupni kanon closeShiftCasIfOpen — pogojni updateMany
+    // { id, status: 'open' } je avtoritativna vrata; count 0 →
+    // SHIFT_ALREADY_CLOSED (ruta preslika v 409, pariteta starega pogodbe).
+    const closed = await closeShiftCasIfOpen(tx, activeShiftId, {
+      closingCash: data.actualClosingCash,
+      expectedCash: data.expectedCash,
+      cashDifference: data.cashDifference,
+      cashSales: data.cashSales,
+      cardSales: data.cardSales,
+      mobileSales: data.mobileSales,
+      alternateSales: data.alternateSales,
+      totalSales: data.totalSales,
+      totalOrders: data.completedOrdersCount,
+      totalDiscounts: data.totalDiscounts,
+      totalTips: data.totalTips,
+      totalVoided: data.totalVoided,
+      notes: data.notes || '',
     })
+    if (!closed) {
+      throw new Error(SHIFT_ALREADY_CLOSED)
+    }
   })
 }
 

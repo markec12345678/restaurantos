@@ -335,6 +335,7 @@ export const FACTS: BusinessFact[] = [
     epic10: false,
     models: ['CashRegisterShift', 'ZReport', 'DailyClose'],
     writers: [
+      'src/lib/cash-shift/close-shift-canon.ts',
       'src/app/api/cash-register/route.ts',
       'src/app/api/cash-register/[id]/route.ts',
       'src/app/api/end-of-day/_helpers/close-shift.ts',
@@ -349,7 +350,7 @@ export const FACTS: BusinessFact[] = [
     ],
     modules: ['cash-register', 'end-of-day', 'z-report', 'shifts'],
     derived:
-      "shift totals (cashSales/cardSales/totalSales/cashDifference); Z totals — R110 kanon: vsi Z-pisi skozi EN upsert pod `pg_advisory_xact_lock(hashtext('z-report:<loc>:<date>'))` + CAS `{ status: { not: 'finalized' } }`; Z-poročilo = EDINI vir finančne resnice (§18); DailyClose = snapshot pariteta",
+      "shift totals (cashSales/cardSales/totalSales/cashDifference); shift close — R185 kanon: closeShiftCasIfOpen CAS `{ id, status: 'open' }` čez VSE tri rute (zero divergentnih izvodov); Z totals — R110 kanon: vsi Z-pisi skozi EN upsert pod `pg_advisory_xact_lock(hashtext('z-report:<loc>:<date>'))` + CAS `{ status: { not: 'finalized' } }`; Z-poročilo = EDINI vir finančne resnice (§18); DailyClose = snapshot pariteta",
     auditActions: ['CLOSE_REGISTER_SHIFT', 'EOD_COMPLETED', 'DAILY_CLOSE_APPROVED', 'Z_REPORT_REOPENED'],
   },
   {
@@ -535,7 +536,7 @@ export function buildBusinessChainDoc(): string {
     '- **A5 ✅ Sold-out** — deriviran, NI persistiran: read-time kanon (`menu-availability.ts`) + uveljavljanje ob naročilu (R124 409); `MenuItem.isAvailable` = ročni 86-flag z enim pisalcem.',
   )
   lines.push(
-    "- **A6 🟡 Trojni pisec smene/Z** — 3 rute zaprejo smeno (cash-register/[id], end-of-day, reports/eod), vse CAS `updateMany {status:'open'}` + vse Z-pise skozi EN R110 upsert z ključavnico. Urejena multiplikativnost — sprejemljivo, občutljivo na drift.",
+    "- **A6 ✅ Trojni pisec smene/Z — REŠENO R185** — closeShiftCasIfOpen kanon (src/lib/cash-shift/close-shift-canon.ts): pogojni updateMany `{ id, status: 'open' }` je EDINA zapiralna vrata čez VSE tri pise (cash-register/[id] PUT — R104 vzorec; end-of-day closeShift — R110 EOD-1 vzorec; reports/eod closeShiftTransaction — prej NEPOGOJEN update z read-check TOCTOU double-close, zdaj kanon + SHIFT_ALREADY_CLOSED 409); Z-pisi ostajajo v EN R110 upsert z ključavnico (upsertZReportForDay, advisory `z-report:{locationId}:{date}`) — drift-gate tests/unit/security/r185-shift-close-canon.test.ts (runtime CAS + fs-pini konsumatorjev + negativni pini starega stanja).",
   )
   lines.push(
     '- **A7 ✅→REŠENO R183 (enoten reversal kanon plačilnega statusa)**: derivacija check/order paymentStatus po povračilu/poničitvi je živela v dveh divergentnih izvodih — POST /refund inline (netPaid v JS float, \u0027storno\u0027 terminacija, paidAt ni bil resetiran) in PUT recalculatePaymentStatus (Σ completed BREZ refundAmount → \u0027unpaid\u0027 terminacija, paidAt reset samo pri unpaid). Isti poslovni dogodek je glede na pot končal v različnem stanju; delno povrnjeno plačilo (completed, refundAmount > 0) je na PUT poti utemeljilo \u0027paid\u0027 kljub nižjemu neto znesku. R183: EN kanon `recalcCheckAndOrderStatusAfterReversal` (src/app/api/payments/_helpers/check-status.ts — isti dom kot plačilna smer `updateCheckAndOrderStatus`): refundAmount-zaveden netPaid (Decimal-varna primerjava, isti ε prag total − 0.01 kot plačilna smer) → storno/partial/paid; order agregacija čez VSE čeke (split-check semantika); paidAt = null ⟺ derived ≠ paid; kljavnica paymentCheckLockKey ostaja (R109 graf P → C). Konsumatorja: POST /refund (step 5+6) + PUT /api/payments/[id]; stara recalculatePaymentStatus IZBRISANA. Drift-gate: tests/unit/security/r183-payment-status-canon.test.ts (13 testov: runtime netPaid derivacija + ε prag + paidAt unifikacija, fs-pini konsumatorjev + negativni pini izbrisanih inline derivacij). Opomba: qr-pay je na R104 že bil na plačilnem kanonu; loyalty/giftcard reverz z ledger vrsticami ostaja namenska logika (ledger princip).',

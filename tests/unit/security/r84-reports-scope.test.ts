@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => ({
   shiftFindFirst: vi.fn(),
   shiftFindUnique: vi.fn(),
   shiftUpdate: vi.fn(),
+  shiftUpdateMany: vi.fn(),
   shiftAggregate: vi.fn(),
   paymentGroupBy: vi.fn(),
   scheduledEmailLogFindMany: vi.fn(),
@@ -81,10 +82,11 @@ vi.mock('@/lib/db', () => ({
       findFirst: mocks.shiftFindFirst,
       findUnique: mocks.shiftFindUnique,
       update: mocks.shiftUpdate,
+      updateMany: mocks.shiftUpdateMany,
       aggregate: mocks.shiftAggregate,
     },
     payment: { groupBy: mocks.paymentGroupBy },
-    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({ cashRegisterShift: { findUnique: mocks.shiftFindUnique, update: mocks.shiftUpdate } })),
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({ cashRegisterShift: { findUnique: mocks.shiftFindUnique, update: mocks.shiftUpdate, updateMany: mocks.shiftUpdateMany } })),
     createAuditLog: vi.fn().mockResolvedValue({}),
     scheduledEmailLog: {
       findMany: mocks.scheduledEmailLogFindMany,
@@ -423,17 +425,21 @@ describe('R84-1 H: computeEodCloseData + closeShiftTransaction — tenant scope'
     expect(mocks.shiftUpdate).not.toHaveBeenCalled()
   })
 
-  it('closeShiftTransaction: lastna izmena se zapre (update klican)', async () => {
+  it('closeShiftTransaction: lastna izmena se zapre (R185 kanon: CAS updateMany klican)', async () => {
     mocks.shiftFindUnique.mockResolvedValue({ id: 'shift-A', status: 'open', locationId: LOC_A })
-    mocks.shiftUpdate.mockResolvedValue({})
+    mocks.shiftUpdateMany.mockResolvedValue({ count: 1 })
     await closeShiftTransaction('shift-A', {
       actualClosingCash: 500, expectedCash: 500, cashDifference: 0,
       cashSales: 0, cardSales: 0, mobileSales: 0, alternateSales: 0,
       totalSales: 0, completedOrdersCount: 0, totalDiscounts: 0,
       totalTips: 0, totalVoided: 0,
     }, LOC_A)
-    expect(mocks.shiftUpdate).toHaveBeenCalledTimes(1)
-    expect(mocks.shiftUpdate.mock.calls[0][0].data.status).toBe('closed')
+    // R185 (A6): pisanje teče IZKLJUČNO prek kanona closeShiftCasIfOpen —
+    // pogojni updateMany { id, status: 'open' }, nepogojen update izkoreninjen
+    expect(mocks.shiftUpdateMany).toHaveBeenCalledTimes(1)
+    expect(mocks.shiftUpdateMany.mock.calls[0][0].where).toEqual({ id: 'shift-A', status: 'open' })
+    expect(mocks.shiftUpdateMany.mock.calls[0][0].data.status).toBe('closed')
+    expect(mocks.shiftUpdate).not.toHaveBeenCalled()
   })
 
   it('closeShiftTransaction: legacy NULL lokacija + loc-bound admin → zavrnjeno (fail-closed)', async () => {
@@ -448,16 +454,17 @@ describe('R84-1 H: computeEodCloseData + closeShiftTransaction — tenant scope'
     ).rejects.toThrow('SHIFT_NOT_FOUND')
   })
 
-  it('closeShiftTransaction: super-admin (null) sme zapreti NULL-lokacijsko izmeno', async () => {
+  it('closeShiftTransaction: super-admin (null) sme zapreti NULL-lokacijsko izmeno (R185: CAS updateMany)', async () => {
     mocks.shiftFindUnique.mockResolvedValue({ id: 'shift-X', status: 'open', locationId: null })
-    mocks.shiftUpdate.mockResolvedValue({})
+    mocks.shiftUpdateMany.mockResolvedValue({ count: 1 })
     await closeShiftTransaction('shift-X', {
       actualClosingCash: 500, expectedCash: 500, cashDifference: 0,
       cashSales: 0, cardSales: 0, mobileSales: 0, alternateSales: 0,
       totalSales: 0, completedOrdersCount: 0, totalDiscounts: 0,
       totalTips: 0, totalVoided: 0,
     }, null)
-    expect(mocks.shiftUpdate).toHaveBeenCalledTimes(1)
+    expect(mocks.shiftUpdateMany).toHaveBeenCalledTimes(1)
+    expect(mocks.shiftUpdateMany.mock.calls[0][0].where).toEqual({ id: 'shift-X', status: 'open' })
   })
 })
 

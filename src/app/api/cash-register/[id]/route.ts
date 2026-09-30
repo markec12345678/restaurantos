@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow, isWithinScope } from '@/lib/tenant-scope'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
 import { closeShiftSchema, postShiftCloseActions } from './_helpers'
+import { closeShiftCasIfOpen } from '@/lib/cash-shift/close-shift-canon'
 
 
 // PUT /api/cash-register/[id] — Close a shift
@@ -156,33 +157,29 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       // Z-report agregate (drugačna množica plačil med branjema) in DUPLICIRAL
       // postShiftCloseActions (audit log + cash_register.closed +
       // daily_report.ready webhooki + Z-osnutek ×2).
-      // Sedaj: pogojni updateMany (where status: 'open') je avtoritativna vrata
-      // — samo PRVI close preide (count=1); konkurenčni close dobi count=0 →
-      // SHIFT_ALREADY_CLOSED. Vzorec: R100 atomic counter CAS.
-      const casClose = await tx.cashRegisterShift.updateMany({
-        where: { id, status: 'open' },
-        data: {
-          status: 'closed',
-          closedAt: new Date(),
-          closingCash,
-          expectedCash,
-          cashSales,
-          cardSales,
-          mobileSales,
-          alternateSales,
-          splitPayments,
-          totalSales,
-          totalOrders,
-          totalDiscounts,
-          // FIX MEDIUM: Vedno uporabi IZRAČUNANE napitnine iz plačil — NE dovoli ročnega prepisa
-          totalTips,
-          totalVoided,
-          totalRefunds, // FIX Test 4.2: vsota vračil za Z-report
-          cashDifference,
-          notes: data.notes || '',
-        },
+      // FIX R185 (A6 kanon): inline pogojni updateMany (R104) je zamenjan s
+      // skupnim kanonom closeShiftCasIfOpen — EN zapiralni pisec čez VSE tri
+      // rute (cash-register/[id], end-of-day closeShift, reports/eod
+      // closeShiftTransaction). totalRefunds je del agregatov (Test 4.2).
+      const closed = await closeShiftCasIfOpen(tx, id, {
+        closingCash,
+        expectedCash,
+        cashSales,
+        cardSales,
+        mobileSales,
+        alternateSales,
+        splitPayments,
+        totalSales,
+        totalOrders,
+        totalDiscounts,
+        // FIX MEDIUM: Vedno uporabi IZRAČUNANE napitnine iz plačil — NE dovoli ročnega prepisa
+        totalTips,
+        totalVoided,
+        totalRefunds, // FIX Test 4.2: vsota vračil za Z-report
+        cashDifference,
+        notes: data.notes || '',
       })
-      if (casClose.count === 0) {
+      if (!closed) {
         throw new Error('SHIFT_ALREADY_CLOSED')
       }
       const closedShift = await tx.cashRegisterShift.findUnique({ where: { id } })
