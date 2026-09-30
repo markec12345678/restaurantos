@@ -27,7 +27,8 @@ import {
 } from '@/components/ui/command'
 import { navItems } from '@/components/pos/sidebar/navItems'
 // §6 (epic #144, R173): centralni modulni register — vlogovna vrata palete
-import { canAccessModule } from '@/lib/modules/registry'
+// P0-02 (R176): workspace = primarna pot (path) na vrhu Moduli skupine
+import { canAccessModule, resolveWorkspaceForUser } from '@/lib/modules/registry'
 import { useAuthUser } from '@/components/pos/sidebar/useAuthUser'
 import { isModuleAllowed, resolveAllowedModules } from '@/lib/sales-mode'
 import { usePOSStore } from '@/lib/store'
@@ -293,6 +294,14 @@ export function CommandPalette() {
 
   // Navigacijski elementi iz navItems
   // R153: v omejenih načinih samo dovoljeni moduli (salesMode → orders)
+  // P0-02 (epic #144, R176): workspace UX model — uporabnikova primarna pot
+  // (workspace.path, v register kot vir) gre NA VRH skupine, ostali moduli
+  // ostanejo v register redu (stabilen sort). Path je SODEBNIK — vrata ostanejo
+  // canAccessModule filtri (R153 kanon ohranjen, r153 test pina te vrstice).
+  const workspace = resolveWorkspaceForUser(authUser)
+  const workspacePathIndex = workspace
+    ? new Map(workspace.path.map((id, i) => [id, i] as const))
+    : null
   const navCommands: CommandNav[] = navItems
     .filter((item) => item.id !== activeModule) // skrij trenutni
     .filter((item) => !restricted || isModuleAllowed(item.id, allowedModules))
@@ -304,6 +313,14 @@ export function CommandPalette() {
       moduleId: item.id,
       group: 'navigation' as const,
     }))
+    .sort((a, b) => {
+      const ia = workspacePathIndex?.get(a.id)
+      const ib = workspacePathIndex?.get(b.id)
+      if (ia !== undefined && ib !== undefined) return ia - ib
+      if (ia !== undefined) return -1
+      if (ib !== undefined) return 1
+      return 0
+    })
 
   // Artikli za paletu: samo razpoložljivi (BREZ slice-cap — cap 12 bi search
   // naredil slepega za artikle pozicionirane kasneje v meniju; cmdk filtrira
@@ -428,10 +445,18 @@ export function CommandPalette() {
 
         <CommandSeparator />
 
-        {/* R153: v omejenih načinih je lahko skupina prazna → ne upodobi */}
+        {/* R153: v omejenih načinih je lahko skupina prazna → ne upodobi
+            P0-02 (R176): glava pokaže workspace (workspace.* i18n ×5) —
+            vloga je vidna v paleti, brez nove skupine/duplikatov */}
         {navCommands.length > 0 && (
           <>
-            <CommandGroup heading="🧭 Moduli">
+            <CommandGroup
+              heading={
+                workspace
+                  ? `🧭 Moduli · ${t(workspace.labelKey)}`
+                  : '🧭 Moduli'
+              }
+            >
               {navCommands.map((nav) => (
                 <CommandItem
                   key={nav.id}

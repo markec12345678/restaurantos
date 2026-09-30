@@ -24,6 +24,9 @@ import {
   DOMAIN_BY_GROUP,
   CORE_MODULE_IDS,
   canAccessModule,
+  resolveWorkspaceForUser,
+  WORKSPACES,
+  ROLE_TO_WORKSPACE,
   type ModuleAccessUser,
 } from '@/lib/modules/registry'
 import { navItems, navGroups, NAV_ICONS } from '@/components/pos/sidebar/navItems'
@@ -421,13 +424,17 @@ describe('Module Registry (§6): R175 Danes kokpit (P0-01)', () => {
     expect(tFor('de', 'nav.danes')).toBe('Heute')
   })
 
-  it('danes: landing logika v page.tsx (fs-pin: view_reports gate + kiosk guard + orders default guard)', () => {
+  it('danes: landing logika v page.tsx (fs-pin P0-02 R176: resolveWorkspaceForUser + vrata + guardi)', () => {
     const src = readSrc('src', 'app', 'page.tsx')
-    expect(src).toContain("canAccessModule(authUser, 'danes')")
-    expect(src).toContain("setActiveModule('danes')")
-    expect(src).toContain("activeModule !== 'orders'")
+    // R176: landing = workspace.landing (resolveWorkspaceForUser) — prej hardcodiran 'danes'
+    expect(src).toContain('resolveWorkspaceForUser(authUser)')
+    expect(src).toContain('canAccessModule(authUser, workspace.landing)')
+    expect(src).toContain('setActiveModule(workspace.landing)')
     expect(src).toContain('kioskMode || salesMode || activeModule !==')
-    expect(src).toContain("authUser.role === 'admin' || authUser.role === 'manager' || authUser.permissions.includes('view_reports')")
+    // stari hardcodirani landing ne sme več obstajati (prepreči regresijo)
+    expect(src).not.toContain("canAccessModule(authUser, 'danes')")
+    expect(src).not.toContain("setActiveModule('danes')")
+    expect(src).not.toContain('canSeeReports')
   })
 
   it('danes: kokpit kompozicija — 7 obstoječih endpointov, brez nove API površine (fs-pin)', () => {
@@ -449,5 +456,155 @@ describe('Module Registry (§6): R175 Danes kokpit (P0-01)', () => {
     expect(src).toMatch(/^  danes: \[/m)
     // pin na KODO (endpoint vnos), komentar z zgodovino ostane dovoljen
     expect(src).not.toContain("endpoint: '/api/orders/stats'")
+  })
+})
+
+// — R176: Role-based workspaces (epic #144, P0-02) —
+
+describe('Module Registry (§6): R176 role-based workspaces (P0-02)', () => {
+  it('struktura: točno 4 workspaces v issue P0-02 redu; labelKey ^workspace.; landing ∈ path; path ⊆ MODULE_IDS', () => {
+    expect(WORKSPACES.map((w) => w.id)).toEqual(['waiter', 'kitchen', 'manager', 'admin'])
+    const ids = new Set(MODULE_IDS)
+    for (const w of WORKSPACES) {
+      expect(w.labelKey, w.id).toMatch(/^workspace\./)
+      expect(w.path.length, w.id).toBeGreaterThanOrEqual(3)
+      expect(w.path, `${w.id}: landing ∈ path`).toContain(w.landing)
+      for (const id of w.path) expect(ids.has(id), `${w.id} → ${id}`).toBe(true)
+    }
+  })
+
+  it('sodbe: path element-wise per issue P0-02 (preslikava na obstoječe module)', () => {
+    expect(WORKSPACES[0].path).toEqual(['tables', 'orders', 'kitchen', 'cash-register'])
+    expect(WORKSPACES[1].path).toEqual(['kitchen', 'kitchen-prep', 'kitchen-stations'])
+    expect(WORKSPACES[2].path).toEqual([
+      'danes', 'orders', 'cash-register', 'z-report', 'employees', 'inventory', 'reports',
+    ])
+    expect(WORKSPACES[3].path).toEqual([
+      'danes', 'settings', 'employees', 'integrations', 'furs', 'configuration', 'compliance',
+    ])
+  })
+
+  it('sodbe: landing = orders / kitchen / danes / danes (P0-01 kanon + KDS NOVO)', () => {
+    const byId = new Map(WORKSPACES.map((w) => [w.id, w.landing]))
+    expect(byId.get('waiter')).toBe('orders')
+    expect(byId.get('kitchen')).toBe('kitchen')
+    expect(byId.get('manager')).toBe('danes')
+    expect(byId.get('admin')).toBe('danes')
+  })
+
+  it('ROLE_TO_WORKSPACE ≡ prisma EmployeeRole enum (dvosmerna pokritost, fs-parse schema)', () => {
+    const prismaSrc = readSrc('prisma', 'schema.prisma')
+    const block = prismaSrc.slice(
+      prismaSrc.indexOf('enum EmployeeRole'),
+      prismaSrc.indexOf('enum EmployeeStatus'),
+    )
+    const enumRoles = [...block.matchAll(/^\s{2}([a-z]+)\s*$/gm)].map((m) => m[1])
+    expect(enumRoles.length, 'enum vrednosti najdene').toBeGreaterThanOrEqual(5)
+    for (const role of enumRoles) {
+      expect(ROLE_TO_WORKSPACE[role], `enum ${role} mapiran`).toBeDefined()
+    }
+    for (const key of Object.keys(ROLE_TO_WORKSPACE)) {
+      expect(enumRoles, `ključ ${key} JE enum vrednost (brez inventiranih rol)`).toContain(key)
+    }
+    expect(enumRoles).toEqual(['admin', 'manager', 'staff', 'chef', 'kitchen'])
+  })
+
+  it('resolveWorkspaceForUser: DB role primarno; fallback po dovoljenjih; null fail-closed', () => {
+    expect(resolveWorkspaceForUser(null)).toBeNull()
+    expect(resolveWorkspaceForUser(undefined)).toBeNull()
+    const idOf = (u: ModuleAccessUser | null) => resolveWorkspaceForUser(u)?.id ?? null
+    // DB enum → role kanon
+    expect(idOf({ role: 'admin', permissions: [] })).toBe('admin')
+    expect(idOf({ role: 'manager', permissions: [] })).toBe('manager')
+    expect(idOf({ role: 'chef', permissions: [] })).toBe('kitchen')
+    expect(idOf({ role: 'kitchen', permissions: [] })).toBe('kitchen')
+    expect(idOf({ role: 'staff', permissions: [] })).toBe('waiter')
+    expect(idOf({ role: 'staff', permissions: ['admin'] })).toBe('waiter') // permission ≠ vloga
+    // fallback (role izven enuma) — vrstni red SODBA: view_reports premaga take_orders
+    expect(idOf({ role: 'analyst', permissions: ['view_reports'] })).toBe('manager')
+    expect(idOf({ role: 'supervisor', permissions: ['manage_employees', 'view_reports'] })).toBe('manager')
+    expect(idOf({ role: 'cashier', permissions: ['manage_cash', 'take_orders'] })).toBe('waiter')
+    expect(idOf({ role: 'cashier', permissions: ['manage_cash'] })).toBe('waiter')
+    expect(idOf({ role: 'hr', permissions: ['manage_employees'] })).toBe('manager')
+    expect(idOf({ role: 'xyz', permissions: [] })).toBeNull()
+  })
+
+  it('P0-01 regresija: admin/manager/view_reports personas → landing danes + dostopen (≡ R175)', () => {
+    const personas: ModuleAccessUser[] = [
+      { role: 'admin', permissions: [] },
+      { role: 'manager', permissions: [] },
+      { role: 'analyst', permissions: ['view_reports'] },
+      { role: 'supervisor', permissions: ['manage_employees', 'view_reports'] },
+    ]
+    for (const u of personas) {
+      const ws = resolveWorkspaceForUser(u)
+      expect(ws, u.role).not.toBeNull()
+      expect(ws!.landing, u.role).toBe('danes')
+      expect(canAccessModule(u, ws!.landing), u.role).toBe(true)
+    }
+  })
+
+  it('landing dostop po 8 likih (brez dovoljenj → vrata zavrnejo, ostane store default)', () => {
+    const cases: { name: string; user: ModuleAccessUser; landing: string; accessible: boolean }[] = [
+      { name: 'admin', user: { role: 'admin', permissions: [] }, landing: 'danes', accessible: true },
+      { name: 'manager', user: { role: 'manager', permissions: [] }, landing: 'danes', accessible: true },
+      { name: 'natakar', user: { role: 'server', permissions: ['take_orders'] }, landing: 'orders', accessible: true },
+      { name: 'blagajnik', user: { role: 'cashier', permissions: ['manage_cash', 'take_orders'] }, landing: 'orders', accessible: true },
+      { name: 'kuhar', user: { role: 'chef', permissions: ['take_orders'] }, landing: 'kitchen', accessible: true },
+      { name: 'vodja ekip', user: { role: 'supervisor', permissions: ['manage_employees', 'view_reports'] }, landing: 'danes', accessible: true },
+      { name: 'analitik', user: { role: 'analyst', permissions: ['view_reports'] }, landing: 'danes', accessible: true },
+      { name: 'brez dovoljenj', user: { role: 'staff', permissions: [] }, landing: 'orders', accessible: false },
+    ]
+    for (const { name, user, landing, accessible } of cases) {
+      const ws = resolveWorkspaceForUser(user)
+      expect(ws?.landing ?? 'orders', `${name}: landing sodba`).toBe(landing)
+      expect(canAccessModule(user, landing), `${name}: vrata za ${landing}`).toBe(accessible)
+    }
+  })
+
+  it('path je SODEBNIK, ne vrata: natakar (take_orders) ne dostopa cash-register (manage_cash)', () => {
+    const waiter = resolveWorkspaceForUser({ role: 'server', permissions: ['take_orders'] })
+    expect(waiter?.id).toBe('waiter')
+    expect(waiter!.path).toContain('cash-register')
+    expect(canAccessModule({ role: 'server', permissions: ['take_orders'] }, 'cash-register')).toBe(false)
+  })
+
+  it('fs: page.tsx landing ≡ resolveWorkspaceForUser; paleta = path na vrhu + workspace glava; r153 filter ohranjen', () => {
+    const page = readSrc('src', 'app', 'page.tsx')
+    expect(page).toContain('resolveWorkspaceForUser(authUser)')
+    expect(page).toContain('canAccessModule(authUser, workspace.landing)')
+    const palette = readSrc('src', 'components', 'pos', 'command-palette', 'CommandPalette.tsx')
+    expect(palette).toContain("import { canAccessModule, resolveWorkspaceForUser } from '@/lib/modules/registry'")
+    expect(palette).toContain('const workspacePathIndex = workspace')
+    expect(palette).toContain('workspacePathIndex?.get(a.id)')
+    expect(palette).toContain('if (ia !== undefined) return -1')
+    // glava skupine pokaže workspace (i18n workspace.*)
+    expect(palette).toContain('`🧭 Moduli · ${t(workspace.labelKey)}`')
+    // r153 kanon: vrata-filtri ostanejo nedotaknjeni (r153 test pina tudi)
+    expect(palette).toContain('.filter((item) => !restricted || isModuleAllowed(item.id, allowedModules))')
+  })
+
+  it('i18n: workspace.* se razreši v 5 jezikih (Natakar/Waiter/Cameriere/Konobar/Kellner ...); fs: točno 4 ključi ×5', () => {
+    const expected: Record<Locale, Record<string, string>> = {
+      sl: { 'workspace.waiter': 'Natakar', 'workspace.kitchen': 'Kuhinja', 'workspace.manager': 'Vodja', 'workspace.admin': 'Skrbnik' },
+      en: { 'workspace.waiter': 'Waiter', 'workspace.kitchen': 'Kitchen', 'workspace.manager': 'Manager', 'workspace.admin': 'Admin' },
+      it: { 'workspace.waiter': 'Cameriere', 'workspace.kitchen': 'Cucina', 'workspace.manager': 'Manager', 'workspace.admin': 'Amministratore' },
+      hr: { 'workspace.waiter': 'Konobar', 'workspace.kitchen': 'Kuhinja', 'workspace.manager': 'Voditelj', 'workspace.admin': 'Administrator' },
+      de: { 'workspace.waiter': 'Kellner', 'workspace.kitchen': 'Küche', 'workspace.manager': 'Manager', 'workspace.admin': 'Administrator' },
+    }
+    for (const locale of LOCALES) {
+      for (const w of WORKSPACES) {
+        expect(tFor(locale, w.labelKey), `${locale} ${w.labelKey}`).toBe(expected[locale][w.labelKey])
+      }
+      const src = readSrc('src', 'lib', 'i18n', 'navigation', `${locale}.ts`)
+      const keys = src.match(/'workspace\.[a-z]+':/g) ?? []
+      expect(keys, locale).toHaveLength(4)
+    }
+  })
+
+  it('fs: PRODUCT-STATUS roleWorkspaces polje dokumentirano (§12 enoten status)', () => {
+    const doc = readSrc('docs', 'PRODUCT-STATUS.md')
+    expect(doc).toContain('"roleWorkspaces"')
+    expect(doc).toContain('resolveWorkspaceForUser')
   })
 })

@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useModulePrefetch } from '@/lib/use-module-prefetch'
 import { moduleComponents, AIAssistant } from '@/app/components/module-registry'
 import { usePOSAuth } from '@/app/components/use-pos-auth'
-import { canAccessModule } from '@/lib/modules/registry'
+import { canAccessModule, resolveWorkspaceForUser } from '@/lib/modules/registry'
 import { AuthLoadingScreen, AuthLoginScreen } from '@/app/components/auth-screens'
 import { ActiveModuleView } from '@/app/components/active-module-view'
 import { SetupRedirect } from '@/components/setup/setup-redirect'
@@ -33,11 +33,14 @@ export default function POSPage() {
   useModulePrefetch(activeModule)
   const { authUser, setAuthUser, authChecked } = usePOSAuth()
 
-  // P0-01 (epic #144, R175): landing = Danes kokpit za like z vidnimi
-  // poročili (admin/manager/view_reports) — ob PRVEM vstopu in SAMO, če
-  // uporabnik še ni sam izbral modula (store default 'orders' ostane za
-  // operativne like: natakar/kuhar/blagajnik). Kiosk/prodajni način NE
-  // preusmerja (sank = brez admin površin, R153).
+  // P0-01 (epic #144, R175) + P0-02 (R176): landing iz WORKSPACES
+  // (resolveWorkspaceForUser — P0-02 UX model nad realnim EmployeeRole enumom):
+  //   admin/manager/view_reports → danes kokpit (≡ P0-01 kanon),
+  //   chef/kitchen → kitchen KDS (NOVO P0-02), staff → orders (no-op).
+  // Ob PRVEM vstopu in SAMO, če uporabnik še ni sam izbral modula (store
+  // default 'orders'); kiosk/prodajni način NE preusmerja (sank = brez admin
+  // površin, R153). Vrati so canAccessModule(landing) — workspace ne odpira
+  // modulov, samo usmerja.
   const landingApplied = useRef(false)
   useEffect(() => {
     if (!authUser) {
@@ -46,11 +49,12 @@ export default function POSPage() {
     }
     if (landingApplied.current) return
     landingApplied.current = true
-    const canSeeReports = authUser.role === 'admin' || authUser.role === 'manager' || authUser.permissions.includes('view_reports')
-    if (!canSeeReports) return
     const { kioskMode, salesMode, activeModule, setActiveModule } = usePOSStore.getState()
     if (kioskMode || salesMode || activeModule !== 'orders') return
-    if (canAccessModule(authUser, 'danes')) setActiveModule('danes')
+    const workspace = resolveWorkspaceForUser(authUser)
+    if (workspace && canAccessModule(authUser, workspace.landing)) {
+      setActiveModule(workspace.landing)
+    }
   }, [authUser])
 
   // P2-UX FIX (stanje po refreshu/crashu): ročna rehidracija košarice/mize iz

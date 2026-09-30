@@ -92,4 +92,10 @@ export const navHr: Record<string, string> = {
   'nav.group.analytics': 'Analitika',
   'nav.group.system': 'Sustav',
 
+  // — P0-02 (epic #144, R176): radna područja po ulogama (WORKSPACES.labelKey) —
+  'workspace.waiter': 'Konobar',
+  'workspace.kitchen': 'Kuhinja',
+  'workspace.manager': 'Voditelj',
+  'workspace.admin': 'Administrator',
+
 }

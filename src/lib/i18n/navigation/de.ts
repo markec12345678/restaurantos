@@ -92,4 +92,10 @@ export const navDe: Record<string, string> = {
   'nav.group.analytics': 'Analytik',
   'nav.group.system': 'System',
 
+  // — P0-02 (epic #144, R176): rollenbasierte Arbeitsbereiche (WORKSPACES.labelKey) —
+  'workspace.waiter': 'Kellner',
+  'workspace.kitchen': 'Küche',
+  'workspace.manager': 'Manager',
+  'workspace.admin': 'Administrator',
+
 }

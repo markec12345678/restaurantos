@@ -269,3 +269,122 @@ export function canAccessModule(
   }
   return true
 }
+
+// ============================================
+// P0-02 (epic #144, R176): ROLE-BASED WORKSPACES
+// ============================================
+//
+// Issue #144 P0-02: "Use the existing role/permission system as a UX model,
+// not only an authorization layer." Workspace = primarna pot po modulih za
+// vlogo, IZPELJANA iz realnega EmployeeRole enuma (prisma/schema.prisma) +
+// kanona 4 dovoljenj — NE nova avtorizacijska plast.
+//
+// Sodbe (iz issue P0-02 primarnih poti, preslikane na obstoječe module):
+//   waiter  : mize → order → send/status → payment  ≡ tables, orders, kitchen,
+//             cash-register (pličilo je task-veriga; dostop do cash-register
+//             ostaja manage_cash-gated — path je SODEBNIK navigacije, ne vrat)
+//   kitchen : KDS → preparation → ready/recall      ≡ kitchen, kitchen-prep,
+//             kitchen-stations (ready/recall sta akciji znotraj KDS)
+//   manager : Danes → operativa → blagajna → osebje → zaloga → analitika
+//             ≡ danes, orders, cash-register, z-report, employees, inventory,
+//             reports (P0-01 kokpit kot vstopna točka)
+//   admin   : danes (P0-01 kokpit) → system → users/roles → integrations →
+//             FURS → configuration → compliance ≡ danes, settings, employees,
+//             integrations, furs, configuration, compliance
+//
+// Landing kanon (page.tsx): workspace.landing ob PRVEM vstopu, samo če
+// canAccessModule(user, landing) in uporabnik še ni sam izbral modula
+// (store default 'orders'). Kiosk/prodajni način se NE preusmerja (R153/R175).
+//   manager/admin → danes (≡ R175 P0-01), chef/kitchen → kitchen KDS (NOVO,
+//   P0-02), staff → orders (no-op ≡ R175 "operativni liki ostanejo").
+//
+// PURE LIB (kanon R173): brez react/lucide/client-direktiv.
+
+export type WorkspaceId = 'waiter' | 'kitchen' | 'manager' | 'admin'
+
+export interface Workspace {
+  id: WorkspaceId
+  /** i18n ključ (workspace.* ×5 jezikov) — CommandPalette "Moduli" glava */
+  labelKey: string
+  /** Landing modul ob prijavi (page.tsx landing gate; invarianta: ∈ path) */
+  landing: string
+  /** Primarna pot (issue #144 P0-02) — urejeni module ids iz registerja */
+  path: string[]
+}
+
+/** 4 workspaces — VRSTNI RED = issue P0-02 (waiter/kitchen/manager/admin) */
+export const WORKSPACES: readonly Workspace[] = [
+  {
+    id: 'waiter',
+    labelKey: 'workspace.waiter',
+    landing: 'orders',
+    path: ['tables', 'orders', 'kitchen', 'cash-register'],
+  },
+  {
+    id: 'kitchen',
+    labelKey: 'workspace.kitchen',
+    landing: 'kitchen',
+    path: ['kitchen', 'kitchen-prep', 'kitchen-stations'],
+  },
+  {
+    id: 'manager',
+    labelKey: 'workspace.manager',
+    landing: 'danes',
+    path: ['danes', 'orders', 'cash-register', 'z-report', 'employees', 'inventory', 'reports'],
+  },
+  {
+    id: 'admin',
+    labelKey: 'workspace.admin',
+    landing: 'danes',
+    path: ['danes', 'settings', 'employees', 'integrations', 'furs', 'configuration', 'compliance'],
+  },
+]
+
+/**
+ * DB EmployeeRole enum (prisma/schema.prisma) → workspace. Drift-gate
+ * uveljavlja dvosmerno pokritost: vsak enum value je mapiran in vsak ključ
+ * JE enum value (brez inventiranih rol — kanon R174: 'server' NE obstaja).
+ */
+export const ROLE_TO_WORKSPACE: Readonly<Record<string, WorkspaceId>> = {
+  admin: 'admin',
+  manager: 'manager',
+  chef: 'kitchen',
+  kitchen: 'kitchen',
+  staff: 'waiter',
+}
+
+/**
+ * Permission fallback za role vrednosti izven DB enuma (legacy/testni liki:
+ * 'server', 'cashier', 'analyst', ...). Prvi match po kanonu 4 dovoljenj.
+ * Vrstni red je SODBA: view_reports premaga take_orders (analitik → kokpit,
+ * ne natakar) — pariteta z R175 landing gate (view_reports → danes).
+ */
+const PERMISSION_WORKSPACE_FALLBACK: readonly (readonly [string, WorkspaceId])[] = [
+  ['view_reports', 'manager'],
+  ['take_orders', 'waiter'],
+  ['manage_cash', 'waiter'],
+  ['manage_employees', 'manager'],
+] as const
+
+/**
+ * Razreši workspace za uporabnika (P0-02 UX model):
+ *   1. brez uporabnika → null (fail-closed)
+ *   2. DB role (EmployeeRole enum) → ROLE_TO_WORKSPACE
+ *   3. izven enuma → permission fallback (prvi match)
+ *   4. brez matcha → null (ostane na store default 'orders')
+ * Rezultat je NAVIGACIJSKI model — dostop še zmeraj uveljavlja
+ * canAccessModule (ta funkcija NE odpira modulov).
+ */
+export function resolveWorkspaceForUser(
+  user: ModuleAccessUser | null | undefined,
+): Workspace | null {
+  if (!user) return null
+  const byRole = ROLE_TO_WORKSPACE[user.role]
+  if (byRole) return WORKSPACES.find((w) => w.id === byRole) ?? null
+  for (const [permission, id] of PERMISSION_WORKSPACE_FALLBACK) {
+    if (user.permissions.includes(permission)) {
+      return WORKSPACES.find((w) => w.id === id) ?? null
+    }
+  }
+  return null
+}
