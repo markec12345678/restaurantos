@@ -1,9 +1,60 @@
 // Pomožne funkcije za Z-report route — Tipi in izračun statistik
 
 import { db } from '@/lib/db'
-import { toNum, round2, multiply } from '@/lib/decimal'
+import { toNum, round2, multiply, type DecimalLike } from '@/lib/decimal'
 import { yieldAdjustedLineCost } from '@/lib/recipes/yield'
 import { getCountryConfig, type CountryCode } from '@/lib/country-config'
+
+// R190 (epik #144 P2 korak 23 — selective tech debt): `any[]` supresije
+// odstranjene — strukturni domenski tipi, ki pokrivajo tako Prisma payload
+// (upsert-z-report include) kot minimalne testne literale. Drift-gate:
+// tests/unit/security/r190-tech-debt-any.test.ts
+
+// Artikel naročila — cena/stopnje so DecimalLike (Prisma Decimal ali
+// string po serializaciji; toNum sprejme oba)
+export interface StatsOrderItem {
+  voided: boolean
+  quantity: number
+  price: DecimalLike
+  vatRate: DecimalLike
+  vatAmount: DecimalLike
+  menuItem: {
+    recipeItems: Array<{
+      quantityPerServing: DecimalLike
+      yieldPercent: DecimalLike
+      inventoryItem: { costPerUnit: DecimalLike } | null
+    }>
+  } | null
+}
+
+// Plačano naročilo — oblika iz upsert-z-report (checks.payments + orderItems
+// z menuItem.recipeItems.inventoryItem.costPerUnit)
+export interface StatsPaidOrder {
+  id: string
+  type: string
+  totalWithTip: DecimalLike
+  total: DecimalLike
+  subtotal: DecimalLike
+  tax: DecimalLike
+  discount: DecimalLike
+  tip: DecimalLike
+  orderItems: StatsOrderItem[]
+  checks: Array<{
+    payments: Array<{
+      status: string
+      type: string
+      amount: DecimalLike
+      refundAmount: DecimalLike
+    }>
+  }>
+}
+
+// Storno naročilo — samo polja, ki jih totalStorno agregacija uporablja
+export interface StatsStornoOrder {
+  cancelReason: string | null
+  paymentStatus: string
+  total: DecimalLike
+}
 
 // Tip za rezultat izračuna statistik
 export interface ZReportStats {
@@ -38,8 +89,8 @@ export interface ZReportStats {
 
 // Izračunaj vse statistike iz plačanih naročil
 export async function calculateReportStats(
-  paidOrders: any[], // eslint-disable-line @typescript-eslint/no-explicit-any
-  allOrders: any[], // eslint-disable-line @typescript-eslint/no-explicit-any
+  paidOrders: StatsPaidOrder[],
+  allOrders: StatsStornoOrder[],
   dayStart: Date,
   dayEnd: Date,
   locationId: string | undefined,
@@ -83,8 +134,7 @@ export async function calculateReportStats(
     totalDiscounts += toNum(order.discount)
     totalTips += toNum(order.tip)
     // FIX HIGH: totalGuests naj NE šteje voided artiklov
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    totalGuests += order.orderItems.filter((oi: any) => !oi.voided).reduce((sum: number, oi: any) => sum + oi.quantity, 0)
+    totalGuests += order.orderItems.filter((oi) => !oi.voided).reduce((sum, oi) => sum + oi.quantity, 0)
 
     // FIX HIGH: totalSales vsebuje tip, a tipBreakdown ne (isti numeric fallback kot zgoraj)
     if (order.type === 'dine-in') dineInSales += orderGross
@@ -112,8 +162,7 @@ export async function calculateReportStats(
       // Food cost — FIX BUG-14 MEDIUM: Uporabi recipeItems za dejanski strošek
       if (oi.menuItem) {
         if (oi.menuItem.recipeItems && oi.menuItem.recipeItems.length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          totalCost += oi.menuItem.recipeItems.reduce((cost: number, ri: any) => {
+          totalCost += oi.menuItem.recipeItems.reduce((cost, ri) => {
             // R123 (P0-05): teoretični food cost skozi yield (RAW × cena) —
             // skladno z dejansko RAW dedukcijo v zalogovnem ledgerju
             return cost + round2(multiply(
@@ -146,12 +195,10 @@ export async function calculateReportStats(
   }
 
   // Storno
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const stornoOrders = allOrders.filter((o: any) =>
+  const stornoOrders = allOrders.filter((o) =>
     o.cancelReason && o.cancelReason.length > 0 && o.paymentStatus === 'storno'
   )
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const totalStorno = stornoOrders.reduce((sum: number, o: any) => sum + Math.abs(toNum(o.total)), 0)
+  const totalStorno = stornoOrders.reduce((sum, o) => sum + Math.abs(toNum(o.total)), 0)
 
   // Gotovina iz blagajne
   const cashShifts = await client.cashRegisterShift.findMany({

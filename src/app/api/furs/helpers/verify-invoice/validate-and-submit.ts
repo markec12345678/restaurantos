@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { toNum } from '@/lib/decimal'
-import { loadCertificatePrivateKey, generateZOI, type FursInvoiceData } from '@/lib/furs'
+import { loadCertificatePrivateKey, generateZOI, type FursConfig, type FursInvoiceData } from '@/lib/furs'
 import { buildFursConfigFromSettings } from '../build-config'
 import { parseVatBreakdown } from '../../shared'
 import { ensureDecrypted } from '@/lib/crypto/secrets'
@@ -14,14 +14,26 @@ import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rat
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { fursVerifySchema } from '@/lib/validations'
+import type { Receipt, RestaurantSettings } from '@prisma/client'
+import { Prisma } from '@prisma/client'
+
+// R190 (epik #144 P2 korak 23 — selective tech debt): `any` supresije iz
+// finančne jedre odstranjene — realni domenski tipi (Prisma + FursConfig +
+// requireAuth kontrakt). Drift-gate: tests/unit/security/r190-tech-debt-any.test.ts
+
+// Naročilo z izdelki + menijskimi podatki (oblika iz validateAndFetchData)
+export type VerifyOrder = Prisma.OrderGetPayload<{ include: { orderItems: { include: { menuItem: true } } } }>
+
+// Avtentikacijski kontrakt requireAuth (session ali error response)
+export type VerifyAuthResult = Awaited<ReturnType<typeof requireAuth>>
 
 // Tip za rezultat validacije
 export interface VerifyValidationResult {
-  order: any // eslint-disable-line @typescript-eslint/no-explicit-any
-  receipt: any // eslint-disable-line @typescript-eslint/no-explicit-any
-  settings: any // eslint-disable-line @typescript-eslint/no-explicit-any
-  config: any // eslint-disable-line @typescript-eslint/no-explicit-any
-  authResult: any // eslint-disable-line @typescript-eslint/no-explicit-any
+  order: VerifyOrder
+  receipt: Receipt
+  settings: RestaurantSettings
+  config: FursConfig
+  authResult: VerifyAuthResult
 }
 
 // Validiraj zahtevo in pridobi vse potrebne podatke
@@ -74,9 +86,9 @@ export async function validateAndFetchData(req: Request): Promise<VerifyValidati
 
 // Generiraj ZOI in pošlji na FURS za overitev
 export async function submitToFurs(
-  receipt: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  settings: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  config: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  receipt: Receipt,
+  settings: RestaurantSettings,
+  config: FursConfig,
 ): Promise<{ zoi: string; invoiceData: FursInvoiceData } | Response> {
   // Naloži privatni ključ
   // BUG-HUNT FIX 2026-09-19 (HIGH): ZOI je bil podpisan z GLOBALNIM

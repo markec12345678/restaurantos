@@ -4,17 +4,19 @@
 
 import { db, createAuditLog } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
-import { generateFursQRContent } from '@/lib/furs'
+import { generateFursQRContent, type FursConfig } from '@/lib/furs'
 import { deductStockForOrder, broadcastLowStockAlert } from '@/lib/stock-deduction'
 import { emitReceiptCreated, emitReceiptFiscalVerified } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
+import type { Receipt, RestaurantSettings } from '@prisma/client'
+import type { VerifyOrder } from './validate-and-submit'
 
 // Obdelaj uspešno overitev — shrani, razknjiži zalogo, QR, audit
 export async function handleSuccessfulVerification(
-  receipt: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  order: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  settings: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  config: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  receipt: Receipt,
+  order: VerifyOrder,
+  settings: RestaurantSettings,
+  config: FursConfig,
   zoi: string,
   result: { zoi: string; eor: string; verifiedAt: Date; isSimulation: boolean; environment: string },
   employeeId: string | undefined,
@@ -37,7 +39,7 @@ export async function handleSuccessfulVerification(
     const stockResult = await deductStockForOrder(
       order.id,
       order.orderNumber,
-      order.orderItems.map((oi: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+      order.orderItems.map((oi) => ({
         menuItemId: oi.menuItemId,
         quantity: oi.quantity,
         voided: oi.voided,
@@ -80,7 +82,7 @@ export async function handleSuccessfulVerification(
 
 // Obdelaj neuspešno overitev
 export async function handleFailedVerification(
-  receipt: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  receipt: Receipt,
   zoi: string,
   result: { error?: string; isSimulation: boolean },
   employeeId: string | undefined,
@@ -99,9 +101,9 @@ export async function handleFailedVerification(
   })
 }
 
-// Obdelaj nepričakovano napako
+// Obdelaj nepričakovano napako (receipt je lahko null — BUG-08 kontrakt iz core.ts)
 export async function handleVerificationError(
-  receipt: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  receipt: Receipt | null,
   error: unknown,
 ) {
   if (receipt?.id) {
@@ -123,9 +125,9 @@ export async function handleVerificationError(
 
 // Generiraj QR za že overjen račun
 export function generateQRForVerifiedReceipt(
-  receipt: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  settings: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  config: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  receipt: Receipt,
+  settings: RestaurantSettings,
+  config: FursConfig,
 ) {
   return generateFursQRContent({
     zoi: receipt.zoi,

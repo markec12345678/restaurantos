@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { toNum } from '@/lib/decimal'
 import { getNextReceiptNumber } from '@/lib/counters'
-import { loadCertificatePrivateKey, generateZOI, verifyInvoiceWithFURS, type FursInvoiceData } from '@/lib/furs'
+import { loadCertificatePrivateKey, generateZOI, verifyInvoiceWithFURS, type FursConfig, type FursInvoiceData } from '@/lib/furs'
 import { buildFursConfigFromSettings } from '../build-config'
 import { parseVatBreakdown } from '../../shared'
 import { logger } from '@/lib/logger'
@@ -16,6 +16,11 @@ import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rat
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { fursStornoSchema } from '@/lib/validations'
+import type { Receipt, RestaurantSettings } from '@prisma/client'
+
+// R190 (epik #144 P2 korak 23 — selective tech debt): `any` supresije iz
+// finančne jedre odstranjene — realni domenski tipi. Drift-gate:
+// tests/unit/security/r190-tech-debt-any.test.ts
 
 /**
  * P1-19 (concurrency): sprosti storno claim (vrni isStorno=false), če FURS
@@ -34,15 +39,18 @@ export async function releaseStornoClaim(receiptId: string): Promise<void> {
   }
 }
 
+// Avtentikacijski kontrakt requireAuth (session ali error response)
+export type StornoAuthResult = Awaited<ReturnType<typeof requireAuth>>
+
 // Tip za rezultat validacije
 export interface StornoValidationResult {
-  receipt: any // eslint-disable-line @typescript-eslint/no-explicit-any
-  settings: any // eslint-disable-line @typescript-eslint/no-explicit-any
-  config: any // eslint-disable-line @typescript-eslint/no-explicit-any
+  receipt: Receipt
+  settings: RestaurantSettings
+  config: FursConfig
   stornoNumber: string
   zoi: string
-  fursResult: { success: boolean; zoi?: string; eor?: string; verifiedAt?: Date; isSimulation: boolean; environment?: string; error?: string }
-  authResult: any // eslint-disable-line @typescript-eslint/no-explicit-any
+  fursResult: Awaited<ReturnType<typeof verifyInvoiceWithFURS>>
+  authResult: StornoAuthResult
   reason: string
   reasonCode: string
   vatBreakdownForStorno: Record<string, { base: number; vat: number }>

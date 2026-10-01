@@ -1,8 +1,12 @@
 // Časovna razdelitev po DDV stopnjah
 
-import { toNum, round2 } from '@/lib/decimal'
+import { toNum, round2, type DecimalLike } from '@/lib/decimal'
 import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 import type { TimeVatEntry } from './types'
+
+// R190 (epik #144 P2 korak 23 — selective tech debt): `any` supresije
+// odstranjene — DecimalLike je natančen domenski tip. Drift-gate:
+// tests/unit/security/r190-tech-debt-any.test.ts
 
 // ─── Izračunaj časovno razdelitev po DDV stopnjah ───
 export function computeTimeVatDistribution(
@@ -11,13 +15,10 @@ export function computeTimeVatDistribution(
     createdAt: Date
     orderItems: Array<{
       voided: boolean
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      price: any
+      price: DecimalLike
       quantity: number
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vatRate: any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vatAmount: any
+      vatRate: DecimalLike
+      vatAmount: DecimalLike
     }>
   }>,
   period: string,

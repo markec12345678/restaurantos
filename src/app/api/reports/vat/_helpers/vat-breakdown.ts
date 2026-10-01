@@ -1,7 +1,12 @@
 // DDV razčlenitev po stopnjah
 
-import { toNum, round2 } from '@/lib/decimal'
+import { toNum, round2, type DecimalLike } from '@/lib/decimal'
 import type { VatRateEntry } from './types'
+
+// R190 (epik #144 P2 korak 23 — selective tech debt): `any` supresije
+// odstranjene — DecimalLike (Prisma.Decimal | number | string | null | undefined)
+// je natančen domenski tip za cene/stopnje, ki jih toNum poje. Drift-gate:
+// tests/unit/security/r190-tech-debt-any.test.ts
 
 // ─── Izračunaj DDV razčlenitev po stopnjah ───
 export function computeVatBreakdown(
@@ -9,18 +14,14 @@ export function computeVatBreakdown(
     id: string
     orderItems: Array<{
       voided: boolean
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      price: any
+      price: DecimalLike
       quantity: number
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vatRate: any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vatAmount: any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      discountAmount: any
+      vatRate: DecimalLike
+      vatAmount: DecimalLike
+      discountAmount: DecimalLike
       menuItemId: string
-      menuItem: { name: string; // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        vatRate: any; category: { name: string } | null } | null
+      menuItem: { name: string
+        vatRate: DecimalLike; category: { name: string } | null } | null
     }>
   }>,
 ): Record<string, VatRateEntry> {

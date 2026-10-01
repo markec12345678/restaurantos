@@ -4,13 +4,18 @@
 
 import { db, createAuditLog } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
-import { generateFursQRContent } from '@/lib/furs'
+import { generateFursQRContent, type FursConfig } from '@/lib/furs'
 import { returnStockForOrder, broadcastLowStockAlert } from '@/lib/stock-deduction'
 import { generateJournalForStorno } from '@/lib/accounting/journal-generator'
+import type { Receipt } from '@prisma/client'
+
+// R190 (epik #144 P2 korak 23 — selective tech debt): `any` supresije iz
+// finančne jedre odstranjene — realni domenski tipi. Drift-gate:
+// tests/unit/security/r190-tech-debt-any.test.ts
 
 // Izvedi storno transakcijo v bazi
 export async function executeStornoTransaction(
-  originalReceipt: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  originalReceipt: Receipt,
   stornoNumber: string,
   fursResult: { zoi?: string; eor?: string; success: boolean; verifiedAt?: Date },
   zoi: string,
@@ -129,14 +134,14 @@ export async function executeStornoTransaction(
 
 // Vrni zalogo in ustvari audit log
 export async function handlePostStorno(
-  receipt: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  stornoReceipt: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  receipt: Receipt,
+  stornoReceipt: Receipt,
   stornoNumber: string,
   reason: string,
   reasonCode: string,
   fursResult: { isSimulation: boolean; zoi?: string },
   zoi: string,
-  config: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  config: FursConfig,
   employeeId: string | undefined,
 ) {
   // Vrni zalogo
