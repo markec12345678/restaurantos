@@ -227,7 +227,7 @@
 > "Pilot findings are converted into actionable repository issues/tests."
 
 - **Dokazne poti** (2, vse obstajajo — fail-closed): `docs/KNOWN_ISSUES.md`, `docs/PRODUCT-STATUS.md`
-- **Razlaga**: Pilot NI izveden → pilotnih ugotovitev OBJEKTIVNO NI (ničesar za konvertirati) — postavka ni "met" in se ne pretvarja. Kanal za konverzijo obstaja in je definiran: KNOWN_ISSUES.md register (delujoč tok: #33/#36 shema-dolg, #32/#37/#45/#47 …) + GitHub issue tracker + test-dokazna praksa rund; akcijsko postane takoj ob izvedbi pilota (pilot-gate vrata §16).
+- **Razlaga**: Pilot NI izveden → pilotnih ugotovitev OBJEKTIVNO NI (ničesar za konvertirati) — postavka ni "met" in se ne pretvarja. Kanal za konverzijo obstaja in je definiran: KNOWN_ISSUES.md register (delujoč tok: #36 arhitektura, #33 shema-dolg zaprt R197, #32/#37/#45/#47 …) + GitHub issue tracker + test-dokazna praksa rund; akcijsko postane takoj ob izvedbi pilota (pilot-gate vrata §16).
 
 #### `pilot-workflows-evidence` — ✅ MET
 
@@ -257,7 +257,7 @@
 > "Independent security validation is tracked separately."
 
 - **Dokazne poti** (3, vse obstajajo — fail-closed): `SECURITY.md`, `docs/KNOWN_ISSUES.md`, `docs/PRODUCT-STATUS.md`
-- **Razlaga**: Ločeno sledenje obstaja: SECURITY.md (Supported Versions ≡ package.json, reporting kanal), KNOWN_ISSUES.md register (MEDIUM/LOW odprte težave z statusi — #32/#31/#45/#37/#33/#36), PRODUCT-STATUS knownBlockers. NEVEDNOST se ne skriva: neodvisna zunanja validacija (pentest) NI izvedena — to je ločen proces zunaj repozitorija, sledenje pa je repo-truth odgovornost, ki jo ta postavka zahteva.
+- **Razlaga**: Ločeno sledenje obstaja: SECURITY.md (Supported Versions ≡ package.json, reporting kanal), KNOWN_ISSUES.md register (MEDIUM/LOW odprte težave z statusi — #32/#31/#45/#37/#36; #33 zaprt R197), PRODUCT-STATUS knownBlockers. NEVEDNOST se ne skriva: neodvisna zunanja validacija (pentest) NI izvedena — to je ločen proces zunaj repozitorija, sledenje pa je repo-truth odgovornost, ki jo ta postavka zahteva.
 
 ## Zaključek closure review-a (R193)
 
@@ -265,7 +265,7 @@
 - **Izvedbeni red §22 je zaključen**: P0 (koraki 1–9: baseline, status, registry, IA, kokpit, workspaces, Golden Path, regresijska vrata, doc truth) + P1 (koraki 10–19: offline, business-chain, plačilna/zalogovna/nabavna veriga, naprave, health, hitrost, pilot-gate, neodvisna varnostna sled) + P2 (koraki 20–23: claims/evidence R187, video R188, release/support/runbook R189, selective tech debt R190–R192 do ratchet 0).
 - **Tech debt dimenzija ZAKLJUČENA**: no-explicit-any ratchet 90 (R189) → 50 (R190) → 31 (R191) → **0 (R192)** — src/ 100 % brez psevdo-any tipov; tsc je dokaz tipovne pravilnosti čez celotno aplikacijo; katerakoli nova supresija prelomi CI (r192-any-zero globalni ratchet).
 - **NI produkcijske validacije** (anti-overclaim): FURS certifikacija, Stripe production keys, realni hardver/tiskalnik/KDS in izveden pilot ostajajo NE-izvedeni (physicalValidationStatus vse false, pilotStatus.executed false — drift-gated). Epik closure = zaključek REPOZITORIJSKE produktnizacije, ne produkcijske pripravljenosti.
-- **Odprte sledljive postavke**: KNOWN_ISSUES #33/#36 (shema-migracije, LOW, P2 Q2 2026), produkcija postavka (seed /api/setup/init + unikatni močni PIN-i ob sprostitvi — blokirana na Vercel kvoto), i18n C2-C, modifiersJson dual-write ostanki (utemeljeni) — vse izrecno registrirane, nič tiho.
+- **Odprte sledljive postavke**: KNOWN_ISSUES #36 (Shift/StaffShift arhitektura, LOW, P2 Q2 2026; #33 zaprt R197 — 25 polj Json @ 0022_json_fields + schema-paritetni drift-gate + 6 utemeljenih ostankov), produkcija postavka (seed /api/setup/init + unikatni močni PIN-i ob sprostitvi — blokirana na Vercel kvoto), i18n C2-C, modifiersJson dual-write ostanki (utemeljeni) — vse izrecno registrirane, nič tiho.
 - **Odluka o zaprtju issue #144 pripada lastniku**: ta dokument je preslikava repository truth; checkboxi v issue telesu se programsko NE odklikavajo.
 
 ## Legenda / Anti-overclaim

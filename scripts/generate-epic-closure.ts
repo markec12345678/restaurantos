@@ -448,7 +448,7 @@ export const ITEMS: ClosureItem[] = [
       'docs/PRODUCT-STATUS.md',
     ],
     note:
-      'Pilot NI izveden → pilotnih ugotovitev OBJEKTIVNO NI (ničesar za konvertirati) — postavka ni "met" in se ne pretvarja. Kanal za konverzijo obstaja in je definiran: KNOWN_ISSUES.md register (delujoč tok: #33/#36 shema-dolg, #32/#37/#45/#47 …) + GitHub issue tracker + test-dokazna praksa rund; akcijsko postane takoj ob izvedbi pilota (pilot-gate vrata §16).',
+      'Pilot NI izveden → pilotnih ugotovitev OBJEKTIVNO NI (ničesar za konvertirati) — postavka ni "met" in se ne pretvarja. Kanal za konverzijo obstaja in je definiran: KNOWN_ISSUES.md register (delujoč tok: #36 arhitektura, #33 shema-dolg zaprt R197, #32/#37/#45/#47 …) + GitHub issue tracker + test-dokazna praksa rund; akcijsko postane takoj ob izvedbi pilota (pilot-gate vrata §16).',
   },
   {
     id: 'pilot-workflows-evidence',
@@ -504,7 +504,7 @@ export const ITEMS: ClosureItem[] = [
       'docs/PRODUCT-STATUS.md',
     ],
     note:
-      'Ločeno sledenje obstaja: SECURITY.md (Supported Versions ≡ package.json, reporting kanal), KNOWN_ISSUES.md register (MEDIUM/LOW odprte težave z statusi — #32/#31/#45/#37/#33/#36), PRODUCT-STATUS knownBlockers. NEVEDNOST se ne skriva: neodvisna zunanja validacija (pentest) NI izvedena — to je ločen proces zunaj repozitorija, sledenje pa je repo-truth odgovornost, ki jo ta postavka zahteva.',
+      'Ločeno sledenje obstaja: SECURITY.md (Supported Versions ≡ package.json, reporting kanal), KNOWN_ISSUES.md register (MEDIUM/LOW odprte težave z statusi — #32/#31/#45/#37/#36; #33 zaprt R197), PRODUCT-STATUS knownBlockers. NEVEDNOST se ne skriva: neodvisna zunanja validacija (pentest) NI izvedena — to je ločen proces zunaj repozitorija, sledenje pa je repo-truth odgovornost, ki jo ta postavka zahteva.',
   },
 ]
 
@@ -695,7 +695,7 @@ export function buildEpicClosureDoc(): string {
     '- **NI produkcijske validacije** (anti-overclaim): FURS certifikacija, Stripe production keys, realni hardver/tiskalnik/KDS in izveden pilot ostajajo NE-izvedeni (physicalValidationStatus vse false, pilotStatus.executed false — drift-gated). Epik closure = zaključek REPOZITORIJSKE produktnizacije, ne produkcijske pripravljenosti.',
   )
   lines.push(
-    '- **Odprte sledljive postavke**: KNOWN_ISSUES #33/#36 (shema-migracije, LOW, P2 Q2 2026), produkcija postavka (seed /api/setup/init + unikatni močni PIN-i ob sprostitvi — blokirana na Vercel kvoto), i18n C2-C, modifiersJson dual-write ostanki (utemeljeni) — vse izrecno registrirane, nič tiho.',
+    '- **Odprte sledljive postavke**: KNOWN_ISSUES #36 (Shift/StaffShift arhitektura, LOW, P2 Q2 2026; #33 zaprt R197 — 25 polj Json @ 0022_json_fields + schema-paritetni drift-gate + 6 utemeljenih ostankov), produkcija postavka (seed /api/setup/init + unikatni močni PIN-i ob sprostitvi — blokirana na Vercel kvoto), i18n C2-C, modifiersJson dual-write ostanki (utemeljeni) — vse izrecno registrirane, nič tiho.',
   )
   lines.push(
     '- **Odluka o zaprtju issue #144 pripada lastniku**: ta dokument je preslikava repository truth; checkboxi v issue telesu se programsko NE odklikavajo.',

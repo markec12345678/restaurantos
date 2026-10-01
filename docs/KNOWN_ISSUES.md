@@ -105,8 +105,9 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 - **Popravek:** Location je sedaj source of truth. RestaurantSettings FURS polja ostajajo kot fallback (deprecated, 30-day grace period).
 
 ### #33 — 20+ JSON-as-String polj namesto Prisma `Json` tipa
-- **Status:** 🔄 Odprt (LOW, P2 Q2 2026)
+- **Status:** ✅ FIXED (R150 jedro — 25 polj Json, migracija `0022_json_fields`; R197 schema-paritetni drift-gate `tests/unit/lib/json-fields-schema-parity.test.ts` 11 testov + KNOWN_ISSUES zaključek)
 - **Vpliv:** Ni varnostna težava — samo code quality.
+- **Kontrakt (R150-a + R197):** 25 inventariziranih polj (`migrated: true`) ≡ `Json` v schema.prisma ≡ TYPE JSONB stavek v 0022 migraciji ≡ pokritje v `JSON_WIRE_FIELDS` (wire ostaja JSON string — byte-identical za odjemalce). 6 ostankov izrecno utemeljenih (byte-exact pin, ostajajo `String`): `OrderItem.modifiersJson` (dual-write legacy wire — drop odložen, produktna odločitev), `AuditLog.details` (hash veriga recompute-a iz shranjenega stringa), `WebhookDelivery.payload` (retry + HMAC reproducibilnost), `RestaurantSettings.apiKeys` (deprecatiran keystore — P0-C5 ApiKey tabela), `MenuItem.allergens`/`Modifier.allergens` (CSV, NI JSON — izven scope-a). Vsak tip-drift inventoriziranega polja brez posodobitve inventarja = rdeč test.
 
 ### #36 — Shift vs StaffShift ~80% overlap
 - **Status:** 🔄 Odprt (LOW, P2 Q2 2026)
@@ -149,11 +150,11 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 | #35 Hash chain empty | MEDIUM | ✅ FIXED |
 | #47 Reservation overlap | MEDIUM | ✅ FIXED |
 | #32 Subscription nullable | MEDIUM | ✅ FIXED (migration package) |
-| #33 JSON-as-String | LOW | 🔄 OPEN (code quality) |
+| #33 JSON-as-String | LOW | ✅ FIXED (R150 jedro: 25 polj Json @ 0022 + R197 drift-gate; 6 ostankov utemeljenih) |
 | #36 Shift/StaffShift overlap | LOW | 🔄 OPEN (arhitektura) |
 | #48 Neon locationId drift (11 tabel) | MEDIUM | ✅ FIXED (R195 migration package; aplikacija = uporabniški korak) |
 
-**Skupaj:** 0 HIGH odprtih, 0 MEDIUM odprtih, 2 LOW odprtih (code quality).
+**Skupaj:** 0 HIGH odprtih, 0 MEDIUM odprtih, 1 LOW odprt (#36 arhitektura; #33 zaprt R197).
 
 ---
 
