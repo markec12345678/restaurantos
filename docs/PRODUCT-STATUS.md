@@ -17,8 +17,8 @@
   "versionSource": "package.json",
   "statusDocVersion": 1,
   "statusUpdated": "2026-09-30",
-  "statusUpdatedRound": "R187 (epik #144, P2 faza, korak 20 — finalize product claims and evidence: javna fasada očiščena konkurenčnih primerjav po §18/#141 pravilih — '4x ceneje od Toast, 2x ceneje od Square' = nepodprta cenovna trditev IZBRANA → nadomeščena z zmožnostjo utemeljeno trditvijo (§18 realna zgodba: mize → naročila → kuhinja → plačilo → FURS → smene → zaloge → nabava → analitika, 75 modulov / 7 skupin), design badge 'Toast/Square patterns' → nevtralen 'Industry POS patterns' (zgodovinski DESIGN-IMPROVEMENTS doc nedotaknjen — datiran, jasno zgodovinski); trajen drift-gate: doc-truth +1 test (negativni pini 'ceneje od/cheaper than/v primerjavi z' + competitor badge labeli — P2 pravila zdaj CI-uveljavljena); osvežitev dokaza: ciLastFileBasedProof → CI run 36821743289 @ ed8c2e43 (R186 drevo, zero delta — CI potrjuje enaka vrata kot lokalna R185/R186); prej R186: osvežitev dokaza @ b5c8c0ba — P1 faza ZAKLJUČENA (A0–A9; vsebina runde R185: A6 enoten zapiralni kanon smene closeShiftCasIfOpen — tri rute zaprejo CashRegisterShift: cash-register/[id] PUT (R104 CAS), end-of-day closeShift (R110 EOD-1 CAS), reports/eod closeShiftTransaction (prej NEPOGOJEN update z read-check TOCTOU double-close); BUSINESS-CHAIN A6 ✅ — VSA arhitekturna tveganja REŠENA; drift-gate tests/unit/security/r185-shift-close-canon.test.ts 13 testov)",
-  "headCommitAtStatus": "ed8c2e43",
+  "statusUpdatedRound": "R188 (epik #144, P2 faza, korak 21 — finalize #141 product presentation/video: NOV docs/PRODUCT-VIDEO-STORYBOARD.md — definitiven storyboard produktnega videa po #141 smernicah: §18 realna zgodba (tla → miza → naročilo → kuhinja → priprava → plačilo → račun → izmena/poročanje → zaloge/nabava → food cost → analitika → poslovni pregled) preslikana scene-po-sceno (S1–S17) na REALNE registry module in REALNE komponente/rute; priloga A = popolna preslikava vseh 76 modulov (53 Da po scenah + 2 izbirno + 21 Ne z razlogom — nič tiho izpuščeno); naprave/rute (POS, /waiter, /kds, /kiosk, QR meni, /receipt, /display, /driver, /reserve), jeziki SL/EN/IT/HR/DE, FURS omejitve izrecno (certifikacija pending — video ne trdi certifikacije), demo kredence DEMO / TEST ONLY; FORENZIKA: docs/VIDEO-TUTORIALS.md (stari tehnični načrt: namestitev + PIN: 1234 brez markacije) = zgodovinski doc — banner + DEMO / TEST ONLY opozorilo + kazalec na storyboard; trajen drift-gate: tests/unit/security/r188-video-storyboard.test.ts 16 testov (pokritost vseh 76 registry modulov v prilogi A + fs-verifikacija vseh omenjenih screen/route poti + negativni pini konkurenca/primerjalne cene/tehnične metrike v narrativu + DEMO markacija) — P2-21 zdaj CI-uveljavljen; osvežitev dokaza: ciLastFileBasedProof → CI run 36824838355 @ 5315e89e (R187 drevo, 7/7 + Monitor ×2 + E2E 36824838347 234/4 — številke iz CI logov); prej R187: P2 korak 20 — finalize product claims and evidence (javna fasada očiščena konkurenčnih primerjav po §18/#141, drift-gate +1 test); R186: osvežitev dokaza @ b5c8c0ba — P1 faza ZAKLJUČENA (A0–A9))",
+  "headCommitAtStatus": "5315e89e",
   "stack": {
     "framework": "Next.js 16 App Router",
     "language": "TypeScript 5 (strict)",
@@ -42,14 +42,14 @@
   },
   "testEvidence": {
     "evidenceSource": "docs/PRODUCTION-VALIDATION.md §2 (CI-log-izpeljano, file-based)",
-    "unit": { "files": 298, "tests": 5420 },
-    "unitSecuritySuite": { "files": 104, "tests": 2002 },
-    "unitTotalWithSecurity": 5420,
+    "unit": { "files": 299, "tests": 5436 },
+    "unitSecuritySuite": { "files": 105, "tests": 2018 },
+    "unitTotalWithSecurity": 5436,
     "integration": { "files": 23, "tests": 235 },
     "e2ePlaywright": { "passed": 234, "skipped": 4 },
     "e2eSecurity": 96,
     "ciVerification": "lokalna vrata ×2 (R172) = vir unit/integration števil; CI run za trenutni HEAD potrdi enaka vrata ob pushu (vitest štetje je deterministično na istem drevesu)",
-    "ciLastFileBasedProof": "HEAD ed8c2e43 (R186) — CI run 36821743289: 7/7 jobov success attempt=1 (Unit 298f/5419 = vključno security podmnožica 104f/2002 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration, Security Audit) + Monitor ×2 success + E2E run 36821743372 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); R186 je čisto osvežitev dokaza (drevo ≡ R185, CI ≡ lokalna vrata 5419); R187 doda +1 test (P2-20 konkurenčna-trditev drift-gate) → lokalna vrata 298f/5420 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R187)",
+    "ciLastFileBasedProof": "HEAD 5315e89e (R187) — CI run 36824838355: 7/7 jobov success attempt=1 (Unit 298f/5420 = vključno security podmnožica 104f/2002 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration, Security Audit) + Monitor ×2 success + E2E run 36824838347 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); številke iz CI logov; R187 (P2 korak 20 — konkurenčna-trditev drift-gate) CI-potrjen; R188 (P2 korak 21 — #141 video storyboard drift-gate) doda +1f/+16 testov → lokalna vrata 299f/5436 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R188)",
     "verifyFeatures": "30/30 (npx tsx scripts/verify-features.ts)"
   },
   "deployedEnvironment": {

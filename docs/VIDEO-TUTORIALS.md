@@ -1,5 +1,15 @@
 # Video Tutorial Series — RestaurantOS
 
+> ⚠️ **ZGODOVINSKI DOKUMENT** (načrt pred epikom #144). Ta načrt 5 tehničnih videov
+> (namestitev, nastavitev …) je **zgodovinski** — za produktni video velja
+> [PRODUCT-VIDEO-STORYBOARD.md](./PRODUCT-VIDEO-STORYBOARD.md) (epik #144 P2 korak 21,
+> R188 — realna uporabniška zgodba po #141 smernicah: dejanski UI, realna zmožnost,
+> brez tehničnega setupa kot glavne vsebine).
+>
+> ⚠️ **VSI PIN-i, URL-i in poverilnice v tem zgodovinskem dokumentu so DEMO / TEST ONLY**
+> (npr. `PIN: 1234 (admin)` spodaj = samo sandbox/demo okolje). Produkcija zahteva
+> unikatne, močne PIN-e (demoPinPolicy — docs/PRODUCT-STATUS.md).
+
 **Target:** 5 videos, 3-5 minutes each
 **Platform:** YouTube (RestaurantOS channel)
 **Language:** Slovenian (with English subtitles)
