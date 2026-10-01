@@ -27,22 +27,22 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `614f4fb9` — osveženo R201, epik #144: osvežitev dokaza @ R200 push run)
+## 2. CI / repository evidence (HEAD `58201114` — osveženo R202, epik #144: osvežitev dokaza @ R201 push run)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36903754488` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
-| E2E run | `36903754431` — **success** (Playwright: 234 passed / 4 skipped) |
+| CI run | `36908280171` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
+| E2E run | `36908280180` — **success** (Playwright: 234 passed / 4 skipped) |
 | run_attempt | CI run 7/7 = attempt 1 (API verified); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
 | Unit (CI log) | 306 fajlov / **5572** testov, 0 skipped — `test:unit` vključuje security suite (110 fajlov / **2127** = podmnožica job-a; R177-d semantika, ne seštevek) |
 | Integration (CI log) | 24 fajlov / **248** testov, 0 skipped |
-| E2E Security | **96 passed** (job log grep; enak kot R178–R200 runi — od takrat ni novih security specov) |
-| Lokalna reprodukcija | vitest run 5572/5572 (306 fajlov), exit 0 (R201 lokalna vrata: čisto osvežitev dokaza @ R200 push run — +0f/+0, samo dokumentacijski pini doc-truth/product-status R200 → R201; monotono ≥ R200 5572 — CI run 36903754488 @ 614f4fb9 potrdi 5572 ŽE NA PUSHED DREVESU R200 z ZERO delta) |
+| E2E Security | **96 passed** (job log grep; enak kot R178–R201 runi — od takrat ni novih security specov) |
+| Lokalna reprodukcija | vitest run 5572/5572 (306 fajlov), exit 0 (R202 lokalna vrata: čisto osvežitev dokaza @ R201 push run — +0f/+0, samo dokumentacijski pini doc-truth/product-status R201 → R202; monotono ≥ R201 5572 — CI run 36908280171 @ 58201114 potrdi 5572 ŽE NA PUSHED DREVESU R201 z ZERO delta) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R201, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
+Skipped/todo sweep (re-verificirano R202, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
-furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R201 niso dodali novih skipov.
+furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R202 niso dodali novih skipov.
 
 > Zgodovina osvežitev §2: R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
 > 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
@@ -69,6 +69,7 @@ furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R201 nis
 > R199 @ 2d1faa3a (run 36896276358, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R198 5572/306 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po R198 refresh — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R198 → R199).
 > R200 @ e3988670 (run 36899375722, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R199 5572/306 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po R199 refresh — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R199 → R200).
 > R201 @ 614f4fb9 (run 36903754488, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R200 5572/306 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po R200 refresh — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R200 → R201).
+> R202 @ 58201114 (run 36908280171, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R201 5572/306 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po R201 refresh — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R201 → R202).
 
 > Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
 
