@@ -17,8 +17,8 @@
   "versionSource": "package.json",
   "statusDocVersion": 1,
   "statusUpdated": "2026-09-30",
-  "statusUpdatedRound": "R186 (osvežitev dokaza: ciLastFileBasedProof → CI run 36778332454 @ b5c8c0ba — CI potrjuje enaka vrata kot lokalna R185, P1 faza epika #144 ZAKLJUČENA; vsebina runde R185: issue #144, P1 faza, A6 — enoten zapiralni kanon smene: tri rute zaprejo CashRegisterShift — cash-register/[id] PUT (R104 CAS), end-of-day closeShift (R110 EOD-1 CAS) in reports/eod closeShiftTransaction (NEPOGOJEN update z read-check znotraj tx = TOCTOU double-close, isti razred kot R104 C1/R110 EOD-1; R110 je popravil samo (2), ta pisec je ostal divergenten → dva sočasna POST /api/reports/eod = last-writer-wins na finančnih agregatih + dup CLOSE_REGISTER_SHIFT audit). R185: EN kanon closeShiftCasIfOpen (src/lib/cash-shift/close-shift-canon.ts): pogojni updateMany {id, status:'open'} je EDINA zapiralna vrata (count=1 → zaklenjeno; count=0 → SHIFT_ALREADY_CLOSED 400/409 ali idempotentna null veja); vsa tri pisalna mesta na kanonu; Z-pisi neprizadeti (R110 upsertZReportForDay + advisory ključavnica z-report:{locationId}:{date}); BUSINESS-CHAIN A6 🟡→✅ REŠENO R185 — VSA arhitekturna tveganja A0–A9 REŠENA; drift-gate tests/unit/security/r185-shift-close-canon.test.ts 13 testov (runtime CAS + closeShiftTransaction na kanonu + fs-pini konsumatorjev + negativni pini starega stanja) + legacy fs-pini r110/r104 na novo stanje)",
-  "headCommitAtStatus": "b5c8c0ba",
+  "statusUpdatedRound": "R187 (epik #144, P2 faza, korak 20 — finalize product claims and evidence: javna fasada očiščena konkurenčnih primerjav po §18/#141 pravilih — '4x ceneje od Toast, 2x ceneje od Square' = nepodprta cenovna trditev IZBRANA → nadomeščena z zmožnostjo utemeljeno trditvijo (§18 realna zgodba: mize → naročila → kuhinja → plačilo → FURS → smene → zaloge → nabava → analitika, 75 modulov / 7 skupin), design badge 'Toast/Square patterns' → nevtralen 'Industry POS patterns' (zgodovinski DESIGN-IMPROVEMENTS doc nedotaknjen — datiran, jasno zgodovinski); trajen drift-gate: doc-truth +1 test (negativni pini 'ceneje od/cheaper than/v primerjavi z' + competitor badge labeli — P2 pravila zdaj CI-uveljavljena); osvežitev dokaza: ciLastFileBasedProof → CI run 36821743289 @ ed8c2e43 (R186 drevo, zero delta — CI potrjuje enaka vrata kot lokalna R185/R186); prej R186: osvežitev dokaza @ b5c8c0ba — P1 faza ZAKLJUČENA (A0–A9; vsebina runde R185: A6 enoten zapiralni kanon smene closeShiftCasIfOpen — tri rute zaprejo CashRegisterShift: cash-register/[id] PUT (R104 CAS), end-of-day closeShift (R110 EOD-1 CAS), reports/eod closeShiftTransaction (prej NEPOGOJEN update z read-check TOCTOU double-close); BUSINESS-CHAIN A6 ✅ — VSA arhitekturna tveganja REŠENA; drift-gate tests/unit/security/r185-shift-close-canon.test.ts 13 testov)",
+  "headCommitAtStatus": "ed8c2e43",
   "stack": {
     "framework": "Next.js 16 App Router",
     "language": "TypeScript 5 (strict)",
@@ -42,14 +42,14 @@
   },
   "testEvidence": {
     "evidenceSource": "docs/PRODUCTION-VALIDATION.md §2 (CI-log-izpeljano, file-based)",
-    "unit": { "files": 298, "tests": 5419 },
+    "unit": { "files": 298, "tests": 5420 },
     "unitSecuritySuite": { "files": 104, "tests": 2002 },
-    "unitTotalWithSecurity": 5419,
+    "unitTotalWithSecurity": 5420,
     "integration": { "files": 23, "tests": 235 },
     "e2ePlaywright": { "passed": 234, "skipped": 4 },
     "e2eSecurity": 96,
     "ciVerification": "lokalna vrata ×2 (R172) = vir unit/integration števil; CI run za trenutni HEAD potrdi enaka vrata ob pushu (vitest štetje je deterministično na istem drevesu)",
-    "ciLastFileBasedProof": "HEAD b5c8c0ba (R185) — CI run 36778332454: 7/7 jobov success attempt=1 (Unit 298f/5419 = vključno security podmnožica 104f/2002 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration, Security Audit) + Monitor ×2 success + E2E run 36778332362 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); CI potrjuje enaka vrata kot lokalna R185 (drevo b5c8c0ba ≡ testEvidence) — P1 faza epika #144 ZAKLJUČENA; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R186)",
+    "ciLastFileBasedProof": "HEAD ed8c2e43 (R186) — CI run 36821743289: 7/7 jobov success attempt=1 (Unit 298f/5419 = vključno security podmnožica 104f/2002 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration, Security Audit) + Monitor ×2 success + E2E run 36821743372 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); R186 je čisto osvežitev dokaza (drevo ≡ R185, CI ≡ lokalna vrata 5419); R187 doda +1 test (P2-20 konkurenčna-trditev drift-gate) → lokalna vrata 298f/5420 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R187)",
     "verifyFeatures": "30/30 (npx tsx scripts/verify-features.ts)"
   },
   "deployedEnvironment": {

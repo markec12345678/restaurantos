@@ -106,12 +106,12 @@ describe('DOC TRUTH gate (R179): PRODUCTION-VALIDATION §2 ≡ ciLastFileBasedPr
     expect(pval).toContain(`${runE2e![1]} passed / ${runE2e![2]} skipped`)
   })
 
-  it('§2 je osvežen s trenutno rundi (ni več "osveženo R185" pri HEAD dokazu)', () => {
+  it('§2 je osvežen s trenutno rundi (ni več "osveženo R186" pri HEAD dokazu)', () => {
     const header = pval.split('## 2.')[1]?.split('## 3.')[0] ?? ''
-    expect(header).toContain('osveženo R186')
+    expect(header).toContain('osveženo R187')
+    expect(header).not.toContain('osveženo R186')
     expect(header).not.toContain('osveženo R185')
     expect(header).not.toContain('osveženo R184')
-    expect(header).not.toContain('osveženo R183')
   })
 })
 
@@ -145,5 +145,17 @@ describe('DOC TRUTH gate (R179): negativni pini — zastarele trditve se ne vra�
 
   it('stari aditivni seštevek 7180 ne obstaja več v README evidence vrstici', () => {
     expect(readme).not.toContain('7180 testov')
+  })
+
+  it('P2 pravilo (§18/#141): javna fasada ne nosi konkurenčnih primerjav ali cenovnih trditev', () => {
+    // R187 (P2 korak 20): "4x ceneje od Toast, 2x ceneje od Square" = nepodprta
+    // primerjalna trditev — epik #144 §18 ("no competitor comparisons", "no
+    // unsupported numbers") + issue #141 ("Do not show competitor pricing or
+    // comparative claims"). Negativni pini: primerjave se ne smejo vrniti.
+    expect(readme).not.toMatch(/ceneje od (Toast|Square|Clover|Lightspeed|TouchBistro)/i)
+    expect(readme).not.toMatch(/cheaper than (Toast|Square|Clover|Lightspeed|TouchBistro)/i)
+    expect(readme).not.toMatch(/v primerjavi z (Toast|Square|Clover|Lightspeed|TouchBistro)/i)
+    // design badge label mora biti nevtralen (style=flat-square v URL-ju je CSS, ne konkurenca)
+    expect(readme).not.toMatch(/badge\/design-(Toast|Square|Clover|Lightspeed|TouchBistro)/i)
   })
 })
