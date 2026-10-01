@@ -7,6 +7,7 @@
 
 import { db } from '@/lib/db'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
+import { Prisma } from '@prisma/client'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { checkRateLimitAsync, getClientIp, PUBLIC_ORDER_LIMIT } from '@/lib/rate-limit'
@@ -136,7 +137,7 @@ export async function POST(req: Request) {
       try {
         diningOption = await withLocationColumnFallback('qr-order:diningOption-create', (withLoc) =>
           db.diningOption.create({
-            data: { name: 'Na mestu', type: 'dine-in', isActive: true, sortOrder: 0, prepTimeMinutes: 15, locationId: withLoc ? qrLocationId : undefined } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+            data: { name: 'Na mestu', type: 'dine-in', isActive: true, sortOrder: 0, prepTimeMinutes: 15, locationId: withLoc ? qrLocationId : undefined } as Prisma.DiningOptionUncheckedCreateInput,
         }))
       } catch (e: unknown) {
         // P2002 = vzporedna kreacija (unique type+location) — ponovno poišči

@@ -114,8 +114,10 @@ export async function addItemsToOrder(data: AddItemsToOrderData): Promise<AddIte
         tx,
       )
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma OrderItem & { menuItem } from include
-      const created: any[] = []
+      // R192: konkreten payload tip (OrderItem & { menuItem }) — enak kot include
+      // oblike order.orderItems zgoraj, da se unija [...order.orderItems, ...created] typechecka
+      type OrderItemWithMenuItem = Prisma.OrderItemGetPayload<{ include: { menuItem: true } }>
+      const created: OrderItemWithMenuItem[] = []
       for (const item of data.orderItems) {
         const menuItem = validatedItems.get(item.menuItemId)!
         const vatRate = toNum(menuItem.vatRate)

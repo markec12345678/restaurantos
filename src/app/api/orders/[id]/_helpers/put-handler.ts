@@ -157,6 +157,9 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
     }
 
     // Webhooks
+    // R192: deliveryInfo je Json stolpec — kontrakt: { address: string } (pisalna
+    // mesta pišejo address kot string); `|| ''` ohranja staro runtime semantiko
+    const deliveryJson = existingOrder.deliveryInfo as { address?: string } | null
     await emitOrderWebhooks(id, {
       id,
       orderNumber: existingOrder.orderNumber,
@@ -168,8 +171,7 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
       status: existingOrder.status,
       tableId: existingOrder.tableId,
       notes: existingOrder.notes,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      deliveryInfo: existingOrder.deliveryInfo ? { address: (existingOrder.deliveryInfo as any).address || '' } : null,
+      deliveryInfo: deliveryJson ? { address: deliveryJson.address || '' } : null,
       employeeId: existingOrder.employeeId,
       customerName: existingOrder.customerName,
       locationId: existingOrder.locationId ?? null,

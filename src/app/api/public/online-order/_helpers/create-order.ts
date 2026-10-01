@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
+import { Prisma } from '@prisma/client'
 import { DELIVERY_FEE_VAT_RATE } from './schemas'
 import { createDeliveryInfo } from './create-delivery-info'
 import { validateDiscount } from './validate-discount'
@@ -38,7 +39,7 @@ export async function createOnlineOrder(input: CreateOnlineOrderInput) {
           sortOrder: orderType === 'takeout' ? 1 : 2,
           prepTimeMinutes: orderType === 'delivery' ? 30 : 15,
           locationId: withLoc ? locationId : undefined,
-        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        } as Prisma.DiningOptionUncheckedCreateInput,
       }))
     } catch (e: unknown) {
       // P2002 = vzporedna kreacija — ponovno poišči

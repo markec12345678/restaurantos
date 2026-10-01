@@ -37,6 +37,10 @@ type RedisClient = {
   get(key: string): Promise<string | null>
   del(...keys: string[]): Promise<number>
   incr(key: string): Promise<number>
+  // R192: atomarni Lua INCR+EXPIRE (rate-limit okno) — ioredis eval vrne Lua
+  // rezultat; ta skript vrne [count, ttl]. Kontrakt v interfacu namesto
+  // prejšnjega neomejenega casta na klijentskem objektu.
+  eval(script: string, numKeys: number, key: string, arg: number): Promise<[number, number]>
   expire(key: string, seconds: number): Promise<number>
   ttl(key: string): Promise<number>
   dbsize(): Promise<number>
@@ -161,8 +165,8 @@ export class RedisCacheAdapter implements CacheAdapter {
       local ttl = redis.call('TTL', KEYS[1])
       return {count, ttl}
     `
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await (c as any).eval(luaScript, 1, k, Math.ceil(windowMs / 1000))
+    // R192: eval je zdaj v RedisClient kontraktu (Lua [count, ttl])
+    const result = await c.eval(luaScript, 1, k, Math.ceil(windowMs / 1000))
     const count = result[0]
     const ttlSeconds = result[1]
     const retryAfterMs = ttlSeconds > 0 ? ttlSeconds * 1000 : windowMs

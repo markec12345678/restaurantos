@@ -401,9 +401,18 @@ export async function POST(req: Request) {
 
       for (const model of modelsToBackfill) {
         try {
+          // R192: dinamični dostop po delegate-imenu (27 modelov; Shift namerno
+          // pade v catch — nima locationId filtra → Prisma validacijska napaka →
+          // "Skipping"). Minimalni strukturni kontrakt namesto prejšnjega
+          // neomejenega klijentskega casta: backfill rabi SAMO count +
+          // updateMany z locationId obliko.
+          type LocationBackfillDelegate = {
+            count: (args: { where: { locationId: null } }) => Promise<number>
+            updateMany: (args: { where: { locationId: null }; data: { locationId: string } }) => Promise<{ count: number }>
+          }
+          const delegate = (db as unknown as Record<string, LocationBackfillDelegate>)[model.charAt(0).toLowerCase() + model.slice(1)]
           // Count NULL records
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const count = await (db as any)[model.charAt(0).toLowerCase() + model.slice(1)].count({
+          const count = await delegate.count({
             where: { locationId: null },
           })
 
@@ -412,8 +421,7 @@ export async function POST(req: Request) {
 
             if (apply) {
               // Backfill with first active location
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const result = await (db as any)[model.charAt(0).toLowerCase() + model.slice(1)].updateMany({
+              const result = await delegate.updateMany({
                 where: { locationId: null },
                 data: { locationId: firstLocation.id },
               })

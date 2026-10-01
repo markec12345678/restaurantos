@@ -3,6 +3,8 @@
 
 import { db } from '@/lib/db'
 import { deepToNumbers, toNum, isPositive, round2 } from '@/lib/decimal'
+// R192: amount pride iz reversalBase ({ ...existingPayment, amount: remaining }) —
+// remaining = round2(...) = number; Prisma increment/create sprejme number.
 
 // ─── R109 (PAY-1): unificirani advisory lock ključi za mutacije plačil ───
 //
@@ -41,8 +43,7 @@ export async function reverseGiftCard(
   existingPayment: {
     type: string
     giftCardId: string | null
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    amount: any
+    amount: number
     checkId: string
   },
   paymentId: string,
@@ -91,8 +92,7 @@ export async function reverseLoyaltyPoints(
     type: string
     loyaltyAccountId: string | null
     loyaltyPointsUsed: number
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    amount: any
+    amount: number
     checkId: string
   },
   paymentId: string,

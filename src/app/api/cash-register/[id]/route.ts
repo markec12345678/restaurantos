@@ -1,7 +1,7 @@
 
 // FIX CRITICAL: Zod validacija za zaprtje izmene
 import { db } from '@/lib/db'
-import { toNum, deepToNumbers } from '@/lib/decimal'
+import { toNum, deepToNumbers, type DecimalLike } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow, isWithinScope } from '@/lib/tenant-scope'
@@ -119,8 +119,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       // FIX Test 4.2: Upoštevaj refundAmount — delna/popolna vračila zmanjšajo cashSales
       // Prej: cashSales = vsota amount (ignorirala refunds)
       // Sedaj: cashSales = vsota (amount - refundAmount) za vsako plačilo
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const netPaymentAmount = (p: any) =>
+      // R192: strukturni tip po select obliki ({ type, amount, tipAmount, refundAmount, status })
+      // — amount/refundAmount sta Prisma Decimal, toNum kontrakt (DecimalLike)
+      const netPaymentAmount = (p: { amount: DecimalLike; refundAmount?: DecimalLike | null }) =>
         Math.max(0, toNum(p.amount) - toNum(p.refundAmount || 0))
 
       const cashSales = allPayments.filter(p => p.type === 'cash').reduce((sum, p) => sum + netPaymentAmount(p), 0)

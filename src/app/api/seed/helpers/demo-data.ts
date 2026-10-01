@@ -4,10 +4,12 @@
 
 import { db } from '@/lib/db'
 import { getNextOrderNumber } from '@/lib/counters'
-import { toNum, round2 } from '@/lib/decimal'
+import { toNum, round2, type DecimalLike } from '@/lib/decimal'
 import { requireEnvSecret } from '@/lib/crypto/secrets'
 
-export async function seedDemoData(menuItems: { id: string; price: number; vatRate: number }[]) {
+// R192: price/vatRate prihajajo iz Prisma MenuItem vrstic (Decimal) — toNum
+// kontrakt (DecimalLike); prej 'number' prikrit s any[] na klicni strani
+export async function seedDemoData(menuItems: { id: string; price: DecimalLike; vatRate: DecimalLike }[]) {
   // FIX P0-C4: Get first active location for TENANT_REQUIRED models
   const firstLocation = await db.location.findFirst({
     where: { isActive: true },

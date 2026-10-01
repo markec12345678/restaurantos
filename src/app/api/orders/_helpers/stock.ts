@@ -1,7 +1,7 @@
 // Pomožne funkcije za razknjiževanje zaloge in stranske učinke po ustvarjanju naročila
 
 import { db, createAuditLog } from '@/lib/db'
-import { toNum } from '@/lib/decimal'
+import { toNum, type DecimalLike } from '@/lib/decimal'
 import { deductStockForOrder, broadcastLowStockAlert } from '@/lib/stock-deduction'
 import { emitOrderCreated } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
@@ -14,8 +14,8 @@ export interface PostCreationOrderData {
   orderNumber: number
   type: string
   tableId: string | null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  total: any
+  // R192: Decimal iz Prisma Order.total — toNum kontrakt (DecimalLike)
+  total: DecimalLike
   // R83-FIX: lokacija naročila — za webhook tenant binding (order.created)
   locationId?: string | null
 }

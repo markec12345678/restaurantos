@@ -96,8 +96,8 @@ export async function POST(req: Request) {
     // Ustvari ScheduledEmailLog za vsakega prejemnika
     const created: unknown[] = []
     for (const recipient of recipients) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const log = await (db.scheduledEmailLog as any).create({
+      // R192: scheduledEmailLog je v generated clientu — cast odveč
+      const log = await db.scheduledEmailLog.create({
         data: {
           reportType: data.reportType,
           recipient,

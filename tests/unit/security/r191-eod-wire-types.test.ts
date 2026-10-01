@@ -18,9 +18,10 @@
 //      ključe EodReportData (drift ene strani pade na CI)
 //   4. r166 združljivostni varovalka: strukturni like-tipi so OBVEZNI (polni
 //      Prisma modeli bi podrl r166-batch-key testne literale — R190 lekcija)
-//   5. RATCHET: no-explicit-any v src/ ≤ 31 (90 pred R190 − 40 R190 − 19 R191)
+//   5. RATCHET: no-explicit-any v src/ ≤ 0 (90 pred R190 − 40 R190 − 19 R191
+//      − 31 R192; znižano R191 na 31 in R192 na 0 — popoln sweep)
 //      — trajno samo-padajoča omejitev: znižanje dobrodošlo, višanja CI ne
-//      pusti skozi (aktivni ratchet; r190 test nosi usklajen pin)
+//      pusti skozi (aktivni pini tudi v r190 in r192 testih)
 // ============================================
 
 import { describe, it, expect } from 'vitest'
@@ -225,9 +226,9 @@ describe('R191: API domenski tipi (FURS batch / Z-report / dashboard / receipts)
 })
 
 describe('R191: RATCHET — no-explicit-any v src/ samo padajoč', () => {
-  it('skupno število supresij ≤ 31 (90 pred R190 − 40 R190 − 19 R191)', () => {
+  it('skupno število supresij ≤ 0 (90 pred R190 − 40 R190 − 19 R191 − 31 R192; znižano R192 na 0)', () => {
     const count = countAnySuppressions()
-    expect(count, 'nova any supresija v src/ — ratchet prepoveduje višanje (R191 nivo = 31; znižaj in posodobi pina v r190+r191 testih)').toBeLessThanOrEqual(31)
+    expect(count, 'nova any supresija v src/ — ratchet prepoveduje višanje (R192 nivo = 0; tipiziraj z domenskim tipom namesto supresije)').toBeLessThanOrEqual(0)
     expect(count).toBeGreaterThanOrEqual(0)
   })
 })

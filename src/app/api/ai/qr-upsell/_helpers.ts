@@ -1,7 +1,7 @@
 // Pomožne funkcije za AI QR upsell
 // POST /api/ai/qr-upsell — pomožni modul za parjanja, kategorije in čas dneva
 
-import { toNum } from '@/lib/decimal'
+import { toNum, type DecimalLike } from '@/lib/decimal'
 
 // ─── Tipi ───
 export interface CartItem {
@@ -88,8 +88,8 @@ export function getClassicPairingSuggestions(
   allItems: Array<{
     id: string
     name: string
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    price: any
+    // R192: MenuItem.price je Prisma Decimal — toNum kontrakt (DecimalLike)
+    price: DecimalLike
     category: { name: string } | null
     sortOrder: number
   }>,

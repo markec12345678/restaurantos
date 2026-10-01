@@ -242,9 +242,11 @@ export async function createConfigItem(
       return rest
     }
 
-    // FIX SECURITY: Uporabi type-safe switch namesto dinamičnega (db as any)[prismaModel]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let item: any
+    // FIX SECURITY: Uporabi type-safe switch namesto dinamičnega dostopa do
+    // delegatov po imenu modela
+    // R192: item = unija vrstic 12 modelov (ali NextResponse v nedosegljivi default
+    // veji) — wire mapping toJsonWireDeep sprejme unknown; konkretne rabe ni
+    let item: unknown
     item = await withLocationColumnFallback(`config:${model}`, async (withLoc) => {
       const data = dataForCreate(withLoc)
       switch (prismaModel) {

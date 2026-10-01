@@ -17,14 +17,31 @@ interface DialogState {
   deleteTarget: GiftCard | null
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type MutateFn = (_variables: any) => void
+// R192: konkretni wire tipi mutacij (prej nedoločen splošni spremenljivkov tip)
+// — morajo sovpadati z mutationFn parametri v useGiftCardMutations.ts
+// (react-query kontravariantnost)
+export interface CreateGiftCardVariables {
+  cardNumber: string
+  ownerName: string
+  balance: number
+  initialBalance: number
+  expiresAt: string | null
+  locationId?: string
+}
+export interface UpdateGiftCardVariables extends Record<string, unknown> {
+  id: string
+}
+export interface LoadGiftCardVariables {
+  id: string
+  amount: number
+  note: string
+}
 
 interface MutationFns {
-  createMutate: MutateFn
-  updateMutate: MutateFn
-  loadMutate: MutateFn
-  deleteMutate: MutateFn
+  createMutate: (variables: CreateGiftCardVariables) => void
+  updateMutate: (variables: UpdateGiftCardVariables) => void
+  loadMutate: (variables: LoadGiftCardVariables) => void
+  deleteMutate: (id: string) => void
 }
 
 // ============================================

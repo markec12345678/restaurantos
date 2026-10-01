@@ -285,8 +285,8 @@ export async function createScheduledEmailLog(
     const attachmentName = `${reportType}_${dateStr}.pdf`
 
     for (const recipient of recipients) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (db.scheduledEmailLog as any).create({
+      // R192: scheduledEmailLog je v generated clientu — cast odveč
+      await db.scheduledEmailLog.create({
         data: {
           reportType,
           recipient,

@@ -3,8 +3,8 @@
 // =====================================================================
 
 // Tip za inventarno postavko (vsebuje ID za referenciranje v receptih)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type InvItem = Record<string, any> & { id: string }
+// R192: Record<string, unknown> — uporaba bere samo .id (string)
+export type InvItem = Record<string, unknown> & { id: string }
 
 // Tip za mapo inventarnih postavk
 export type InvMap = Record<string, InvItem>

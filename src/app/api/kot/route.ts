@@ -132,8 +132,9 @@ export async function POST(req: Request) {
     //       counter (atomarni upsert iz R100) ostaja izven tx (številčenje
     //       napak pri abortu je sprejemljivo — isto kot prej).
     let tableNumber = data.tableNumber
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { kot, order: freshOrder } = await (db as any).$transaction(async (tx: any) => {
+    // R192: db je tipiziran PrismaClient ($transaction obstaja) — prej sta oba
+    // klienta in tx bila oba pretakana skozi neomejen splošen tip
+    const { kot, order: freshOrder } = await db.$transaction(async (tx) => {
       const freshOrder = await tx.order.findFirst({
         where: {
           id: data.orderId,
@@ -164,15 +165,14 @@ export async function POST(req: Request) {
       }
 
       // Ustvari KOT dokument (tx-fresh snapshot)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const kot = await (tx.kotDocument as any).create({
+      const kot = await tx.kotDocument.create({
         data: {
           kotNumber,
           orderId: data.orderId,
           type: data.type,
           // R150 (#33): wire sprejema JSON string, DB dobi NATIVNO Json
           // vrednost (tolerantno — items so objekti {name, qty, notes, station})
-          itemsJson: safeJsonParse<unknown[]>(data.itemsJson, []),
+          itemsJson: safeJsonParse<Prisma.InputJsonValue[]>(data.itemsJson, []),
           orderNotes: data.orderNotes,
           tableNumber: tableNumber ?? null,
           orderType: data.orderType,

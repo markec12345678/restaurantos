@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { checkRateLimitAsync, getClientIp, SETUP_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
+import { Prisma } from '@prisma/client'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
@@ -208,7 +209,8 @@ async function seedCoreData(locationId: string, onboarding?: {
       }
       const existing = await db.diningOption.findFirst({ where: { type } })
       if (existing) return db.diningOption.update({ where: { id: existing.id }, data: { name } })
-      return db.diningOption.create({ data: { type, name, prepTimeMinutes: prepTime, isActive: true, sortOrder: type === 'dine-in' ? 0 : type === 'takeout' ? 1 : 2 } as any }) // eslint-disable-line @typescript-eslint/no-explicit-any
+      // R192: run(false) veja — locationId izpuščen (Neon drift-most); tip dokumentira opcijsko izpuščanje
+      return db.diningOption.create({ data: { type, name, prepTimeMinutes: prepTime, isActive: true, sortOrder: type === 'dine-in' ? 0 : type === 'takeout' ? 1 : 2 } as Prisma.DiningOptionUncheckedCreateInput })
     }).catch(() => {})
   }
 
@@ -216,8 +218,7 @@ async function seedCoreData(locationId: string, onboarding?: {
     'Napaka natakarja', 'Kuhinja zgrešila', 'Stranka zamenjala mnenje', 'Alergija', 'Ni na zalogi',
   ].entries()) {
     await withLocationColumnFallback('setup:voidReason', (withLoc) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      db.voidReason.create({ data: { name, isActive: true, sortOrder: idx, locationId: withLoc ? locationId : undefined } as any }),
+      db.voidReason.create({ data: { name, isActive: true, sortOrder: idx, locationId: withLoc ? locationId : undefined } as Prisma.VoidReasonUncheckedCreateInput }),
     ).catch(() => {})
   }
 
@@ -225,18 +226,15 @@ async function seedCoreData(locationId: string, onboarding?: {
     'Mali dvig', 'Vračilo dobavitelju', 'Izplačilo napitnine', 'Zamenjava',
   ].entries()) {
     await withLocationColumnFallback('setup:noSaleReason', (withLoc) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      db.noSaleReason.create({ data: { name, isActive: true, sortOrder: idx, locationId: withLoc ? locationId : undefined } as any }),
+      db.noSaleReason.create({ data: { name, isActive: true, sortOrder: idx, locationId: withLoc ? locationId : undefined } as Prisma.NoSaleReasonUncheckedCreateInput }),
     ).catch(() => {})
   }
 
   await withLocationColumnFallback('setup:prepStation1', (withLoc) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    db.prepStation.create({ data: { name: 'Vroča kuhinja', type: 'kitchen', avgPrepTime: 20, isActive: true, sortOrder: 0, locationId: withLoc ? locationId : undefined } as any }),
+    db.prepStation.create({ data: { name: 'Vroča kuhinja', type: 'kitchen', avgPrepTime: 20, isActive: true, sortOrder: 0, locationId: withLoc ? locationId : undefined } as Prisma.PrepStationUncheckedCreateInput }),
   ).catch(() => {})
   await withLocationColumnFallback('setup:prepStation2', (withLoc) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    db.prepStation.create({ data: { name: 'Bar', type: 'bar', avgPrepTime: 5, isActive: true, sortOrder: 1, locationId: withLoc ? locationId : undefined } as any }),
+    db.prepStation.create({ data: { name: 'Bar', type: 'bar', avgPrepTime: 5, isActive: true, sortOrder: 1, locationId: withLoc ? locationId : undefined } as Prisma.PrepStationUncheckedCreateInput }),
   ).catch(() => {})
 
   await db.counter.upsert({ where: { name: 'orderNumber' }, create: { id: 'counter-order', name: 'orderNumber', value: 0 }, update: {} })

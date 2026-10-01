@@ -79,8 +79,8 @@ export async function handleFireAction(id: string) {
           notes: i.notes || '',
           station: i.menuItem?.prepStation?.name || 'kuhinja',
         }))
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (tx.kotDocument as any).create({
+      // R192: tx je tipiziran iz db.$transaction — kotDocument je v generated clientu, cast odveč
+      await tx.kotDocument.create({
         data: {
           kotNumber,
           orderId: id,

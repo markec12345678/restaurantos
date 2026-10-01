@@ -14,10 +14,11 @@
 //      'no-explicit-any' supresija + 0 × ': any'/'as any' uporaba)
 //   2. kanonski domenski tipi so pinani (Receipt/RestaurantSettings/
 //      FursConfig/VerifyOrder/DecimalLike/Awaited<ReturnType<typeof requireAuth>>)
-//   3. RATCHET: skupno število no-explicit-any supresij v src/ je ≤ 31
-//      (90 pred R190 − 40 R190 − 19 R191; prvotni nivo 50 znižan R191) —
-//      trajno samo-padajoča omejitev: nova runda lahko število zniža,
-//      višanja CI ne pusti skozi (aktivni pin tudi v r191 testu)
+//   3. RATCHET: skupno število no-explicit-any supresij v src/ je ≤ 0
+//      (90 pred R190 − 40 R190 − 19 R191 − 31 R192; prvotni nivo 50, znižan
+//      R191 na 31 in R192 na 0 — popoln sweep) — trajno samo-padajoča
+//      omejitev: katerakoli nova supresija prelomi test (aktivni pini tudi v
+//      r191 in r192 testih)
 // ============================================
 
 import { describe, it, expect } from 'vitest'
@@ -119,9 +120,9 @@ describe('R190: finančna jedra — nič any supresij (epik #144 §22 korak 23)'
 })
 
 describe('R190: RATCHET — no-explicit-any v src/ samo padajoč', () => {
-  it('skupno število supresij ≤ 31 (90 pred R190 − 40 R190 − 19 R191; znižano R191)', () => {
+  it('skupno število supresij ≤ 0 (90 pred R190 − 40 R190 − 19 R191 − 31 R192; znižano R192 na 0)', () => {
     const count = countAnySuppressions()
-    expect(count, 'nova any supresija v src/ — ratchet prepoveduje višanje (R191 nivo = 31; znižaj in posodobi pina v r190+r191 testih)').toBeLessThanOrEqual(31)
+    expect(count, 'nova any supresija v src/ — ratchet prepoveduje višanje (R192 nivo = 0; tipiziraj z domenskim tipom namesto supresije)').toBeLessThanOrEqual(0)
     expect(count).toBeGreaterThanOrEqual(0)
   })
 })

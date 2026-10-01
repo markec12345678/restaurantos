@@ -153,7 +153,7 @@ async function asJson(res: Response): Promise<Record<string, unknown>> {
 beforeAll(async () => {
   // Lokacija + zaposleni (status 'active' — orders POST preveri)
   await db.location.create({ data: { id: IDS.locA, name: `R150 Lokacija ${RUN_ID}`, code: `${RUN_ID}-A`, premisesId: `${RUN_ID}-pa`, isActive: true } })
-  await db.employee.create({ data: { id: IDS.emp, name: `R150 Natakar ${RUN_ID}`, email: `${RUN_ID}@r150.test.local`, role: 'manager', status: 'active', locationId: IDS.locA } })
+  await db.employee.create({ data: { id: IDS.emp, name: `R150 Natakar ${RUN_ID}`, email: `${RUN_ID}@r150.test.local`, role: 'manager', status: 'active', locationId: IDS.locA, pin: `pin-${RUN_ID}` } })
 
   // Katalog MODEL A: Menu → Category → MenuItem (lokacija A)
   await db.menu.create({ data: { id: IDS.menu, name: `R150 Meni ${RUN_ID}`, locationId: IDS.locA } })

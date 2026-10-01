@@ -193,11 +193,14 @@ async function ensureLocation(code: string, preferredId: string, name: string): 
 }
 
 // Idempotentna garantija fixture zaposlenega test-admin (r137 vzorec).
+// R192 FIX IT-flake: create veja reproducira seed stanje (pin '1111') — prej
+// default pin '' (@unique) je trčil z r150-jevim default-pin employee.create,
+// ko je vitestov vrstni red tekel r140 PRED r150.
 async function ensureTestAdmin(): Promise<void> {
   await db.employee.upsert({
     where: { email: ADMIN.email },
     update: {},
-    create: { id: ADMIN.id, name: ADMIN.name, email: ADMIN.email, role: 'admin', status: 'active' },
+    create: { id: ADMIN.id, name: ADMIN.name, email: ADMIN.email, role: 'admin', status: 'active', pin: '1111' },
   })
 }
 

@@ -24,6 +24,23 @@
 
 import { logger } from './logger'
 
+/**
+ * R192: vzorec za create na 11 konfiguracijskih tabelah znotraj
+ * withLocationColumnFallback — data literal nosi
+ * `locationId: withLoc ? locationId : undefined` (undefined = polje ni
+ * podano → Neon drift-most). Ker je locationId v shemi OBVEZEN (String NOT
+ * NULL), literal castamo na UNCHECKED create-input:
+ *
+ *   db.voidReason.create({
+ *     data: { name, isActive: true, locationId: withLoc ? locationId : undefined } as
+ *       Prisma.VoidReasonUncheckedCreateInput,
+ *   })
+ *
+ * Cast je comparable (Unchecked → literal je dodeljiv, ker string ⊂ string |
+ * undefined); edina "izjava" je locationId opcijskost, ki jo dokumentira
+ * zgornji vzorec. Run(false) veja NE sme podati locationId (P2022).
+ */
+
 // P1054/P2022 "column locationId does not exist" detektor.
 //
 // FIX QA runda 39 (hotfix 2): Prisma koda za "column does not exist" je P2022

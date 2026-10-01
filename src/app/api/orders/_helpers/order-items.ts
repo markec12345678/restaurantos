@@ -36,7 +36,9 @@ export interface OrderItemInput {
   menuItemId: string
   quantity: number
   notes?: string
-  modifiersJson?: unknown
+  // R192: schema stolpec OrderItem.modifiersJson je STRING (JSON-encoded) in
+  // zod ga validira kot z.string() (max 10k, default '[]') → pravi tip je string
+  modifiersJson?: string
 }
 
 // Tip za mapiranje artiklov iz baze
@@ -128,7 +130,9 @@ export interface OrderItemData {
   vatAmount: number
   discountAmount: number
   notes?: string
-  modifiersJson?: unknown
+  // R192: legacy wire = JSON-encoded STRING (schema stolpec String, zod
+  // z.string()) → dodeljivo OrderItemUncheckedCreateInput brez casta
+  modifiersJson?: string
   status: 'pending'
 }
 

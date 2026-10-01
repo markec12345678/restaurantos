@@ -72,8 +72,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma MenuItem return type with dynamic fields
-    const menuItems: any[] = []
+    // R192: konkreten Prisma payload (MenuItem vrstica) — seedDemoData bere
+    // id/price/vatRate prek toNum kontrakta (DecimalLike)
+    const menuItems: Awaited<ReturnType<typeof db.menuItem.create>>[] = []
     for (const itemData of menuItemsData) {
       const { modifierGroupIds, ...itemFields } = itemData
       const item = await db.menuItem.create({ data: itemFields })

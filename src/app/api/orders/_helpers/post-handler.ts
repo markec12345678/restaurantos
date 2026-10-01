@@ -359,9 +359,9 @@ export async function handlePostOrder(
         // course pot ustvari iteme eksplicitno spodaj (determinističen courseId
         // wiring). undefined = Prisma polje tretira kot nepodano.
         orderItems: hasCourses ? undefined : {
-          // OrderItemData matches unchecked create input
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          create: orderItemsData as any,
+          // R192: OrderItemData je tipiziran po unchecked create-inputu (InputJsonValue
+          // za modifiersJson) — dodeljivo brez casta
+          create: orderItemsData,
         },
       }
 
@@ -415,12 +415,12 @@ export async function handlePostOrder(
         const courseItemPairs: Array<{ orderItemId: string; modifiersJson: unknown }> = []
         for (let i = 0; i < orderItemsData.length; i++) {
           const createdItem = await tx.orderItem.create({
-            // OrderItemData matches unchecked create input (isti cast kot legacy)
+            // R192: isti OrderItemData kontrakt — orderId/courseId dopolnita unchecked input
             data: {
               ...orderItemsData[i],
               orderId: newOrder.id,
               courseId: courseIds.get(itemCourseNumbers[i]) ?? null,
-            } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+            },
           })
           courseItemPairs.push({ orderItemId: createdItem.id, modifiersJson: orderItemsData[i].modifiersJson })
         }

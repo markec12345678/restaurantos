@@ -2,10 +2,9 @@
 // MENU ARTIKLI - Types
 // =====================================================================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type CategoryRef = { id: string; [key: string]: any }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ModifierRef = { id: string; [key: string]: any }
+// R192: dinamične reference (id + preostali ključi) — uporaba bere samo .id
+export type CategoryRef = { id: string; [key: string]: unknown }
+export type ModifierRef = { id: string; [key: string]: unknown }
 
 export interface MenuItemSeed {
   name: string
