@@ -112,6 +112,12 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 - **Status:** 🔄 Odprt (LOW, P2 Q2 2026)
 - **Vpliv:** Ni varnostna težava — arhitekturni dolg.
 
+### #48 — Neon drift: 11 konfiguracijskih tabel brez locationId stolpca (R195)
+- **Status:** ✅ FIXED (R195 — migration package pripravljen in testiran na PGlite; aplikacija na Neon = uporabniški korak)
+- **Problem:** Neon produkcija ima na 11 konfiguracijskih tabelah (DiningOption, RevenueCenter, SalesCategory, PriceGroup, ServiceCharge, PrepStation, VoidReason, NoSaleReason, AlternatePaymentType, Printer, Discount) še danes NI stolpca `locationId` (db push/migrate ni bil pognan ob MODEL A multi-location spremembi), Prisma schema pa ga zahteva (String NOT NULL) → vsak create/update/findFirst z locationId vrača P2022. Most (`src/lib/prisma-column-fallback.ts`, QA runda 39) operacijo ponovi brez lokacijskega filtra — varno za single-tenant realnost, NE za pravi multi-tenant.
+- **Popravek (R195):** Idempotenten migration package z ENIM virom resnice — `scripts/r195-neon-locationid-migration.sql` (ADD COLUMN IF NOT EXISTS + dinamičen backfill na eno lokacijo + SET NOT NULL + FK RESTRICT + CREATE INDEX = @@index pariteta; 11 tabel × 6 stavkov) + fail-closed applier `scripts/r195-apply-locationid-migration.mjs` (postgres URL guard, Location count === 1 varovalka — multi-location = ročna preslikava, post-verify information_schema/pg_indexes, orphan check). IT dokaz celotnega cikla (drift simulacija DROP COLUMN → aplikacija → NOT NULL+FK+indeks pariteta → backfill → FK enforcement 23503 → idempotenca): `tests/integration/r195-neon-locationid-migration.test.ts`. Detektor napake (`isMissingLocationColumnError`) razširjen na P2010 — driver-adapter pot (PGlite) ne prevaja PG napak v P-code; duck-typing po sporočilu ostaja fail-closed.
+- **Aplikacija:** `DATABASE_URL="postgresql://..." node scripts/r195-apply-locationid-migration.mjs` — uporabniški korak ob dostopu do Neon produkcije. Po aplikaciji P2022 ne nastopi več → most samodejno izgubi vlogo (brez redeploya).
+
 ### #35 — Hash chain polja na GuestVisit in TipDistribution niso populirana
 - **Status:** ✅ FIXED (createGuestVisitWithChain + createTipDistributionWithChain)
 - **Problem:** `previousHash` in `chainHash` polja so obstajala a so bila vedno `""`.
@@ -145,6 +151,7 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 | #32 Subscription nullable | MEDIUM | ✅ FIXED (migration package) |
 | #33 JSON-as-String | LOW | 🔄 OPEN (code quality) |
 | #36 Shift/StaffShift overlap | LOW | 🔄 OPEN (arhitektura) |
+| #48 Neon locationId drift (11 tabel) | MEDIUM | ✅ FIXED (R195 migration package; aplikacija = uporabniški korak) |
 
 **Skupaj:** 0 HIGH odprtih, 0 MEDIUM odprtih, 2 LOW odprtih (code quality).
 
@@ -159,3 +166,4 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 5. **Prvi pravi restaurant pilot**
 6. **P0-C4 Phase 6:** Split `/api/settings` v 3 endpointe (po pilotu)
 7. **#32, #47, #35:** Naslednji hardening sprint (Q1 2026)
+8. **R195 #48 aplikacija:** `node scripts/r195-apply-locationid-migration.mjs` na Neon produkciji (package pripravljen + testiran; uporabniški korak ob dostopu)

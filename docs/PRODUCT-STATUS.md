@@ -17,8 +17,8 @@
   "versionSource": "package.json",
   "statusDocVersion": 1,
   "statusUpdated": "2026-10-01",
-  "statusUpdatedRound": "R194 (epik #144 — osvežitev dokaza @ R193 push run): ciLastFileBasedProof → CI run 36855872713 @ 660a74bf (R193 pushed drevo) — 10/10 check-runov success (CI 7/7 jobov attempt=1: Security Audit, Lint & Typecheck, Migration, Unit 304f/5543 = vključno security podmnožica 109f/2109, Build, Integration 23f/235, E2E Security 96 + E2E run 36855872743 — 234 passed/4 skipped + Monitor ×2), številke iz CI logov — ZERO delta ŽE NA PUSHED DREVESU (najmočnejša oblika dokaza: CI ≡ lokalna vrata R193 popolnoma, brez delta-okna); R194 je čisto osvežitev dokaza — brez produkcijskih sprememb (+0f/+0; samo dokumentacijski pini: PRODUCTION-VALIDATION §2 'osveženo R194' @ 660a74bf + zgodovina R194 + skip sweep re-verificiran 15 e2e / 0 unit+IT, nespremenjeno · README audit badge razvoj-194 + evidence vrstica run 36855872713 @ 660a74bf + napredek segment R194; tests badge 5543 in napredek sidro 5543/304 nespremenjena · product-status pin R194+R193 · doc-truth round pin R194 — negativni R193/R192/R191). Gates: tsc 0 · lint 0 · unit 304f/5543/0 (2× čist) · security podmnožica 109f/2109 · IT 23f/235/0 (sveža IT DB) · verify 30/30 · chain+inventory+matrix+closure regen 0-diff. Živa verifikacija NI-aplikabilna (brez produkcijske kode — samo dokumentacijski pini; E2E na CI pokriva žive poti). Epik #144: §22 closure review 31/32 MET — P0/P1/P2 (koraki 1–23) VSI OPRAVLJENI + sweep rundi + tech debt ZAKLJUČEN (ratchet 0); ostajajo produkcija postavki (FURS cert, Stripe keys, pilot, seed/PIN-i @ Vercel kvota) + KNOWN_ISSUES #33/#36; naslednja runda: KNOWN_ISSUES #33/#36 shema-migraciji / nov scope po uporabnikovih prioritetah.",
-  "headCommitAtStatus": "660a74bf",
+  "statusUpdatedRound": "R195 (epik #144 — KNOWN_ISSUES #48: Neon locationId drift-most — trajna rešitev, package pripravljen + testiran): NOV scripts/r195-neon-locationid-migration.sql (EN vir resnice, idempotenten: 11 tabel × 6 stavkov — ADD COLUMN IF NOT EXISTS + dinamičen backfill na eno lokacijo + SET NOT NULL + FK RESTRICT + CREATE INDEX = @@index pariteta) + NOV scripts/r195-apply-locationid-migration.mjs (fail-closed applier: postgres URL guard — sandbox file: URL zavrnjen, Location count === 1 varovalka — multi-location = ročna preslikava, post-verify information_schema/pg_indexes, orphan check) + NOV tests/integration/r195-neon-locationid-migration.test.ts (13 testov — REALNO bazo skozi celoten cikel: drift simulacija DROP COLUMN na vseh 11 tabelah ≡ Neon runda-39 stanje → realna missing-column napaka → detektor P2010 duck-typing → most run(false) → migracija → NOT NULL+FK+indeks pariteta → backfill → FK enforcement 23503 → idempotenca; LEKCIJA: drift faza izključno raw SQL — model-API INSERT-plan brez locationId bi po ADD COLUMN sprožil 0A000 cached plan must not change result type) + NOV tests/unit/security/r195-neon-drift.test.ts (18 testov drift-gate — 66 stavkov, per-tabela vzorec, idempotentnost 11×, brez DROP COLUMN/DROP TABLE stavkov, brez hardcoded loc-1, apply varovalke, IT bere isto SQL, most se ne briše predčasno, KNOWN_ISSUES #48) · detektor isMissingLocationColumnError razširjen na P2010 (driver-adapter PGlite pot ne prevaja PG napak v P-code; sporočilni regex ostaja fail-closed) · KNOWN_ISSUES #48 MEDIUM FIXED (package; aplikacija na Neon = uporabniški korak) · Doc-truth sync: PRODUCT-STATUS R195 (headCommitAtStatus 8a67fef1, testEvidence 305f/5561 + security podmnožica 110f/2127, unitTotalWithSecurity 5561 — R177-d invarianta; ciLastFileBasedProof → CI run 36865220720 @ 8a67fef1 (R194 pushed drevo): 10/10 check-runov success attempt=1 + E2E run 36865220728 — 234/4, številke iz CI logov: Unit 304f/5543 + subset 109f/2109, IT 23f/235, E2E-sec 96 — ZERO delta ŽE NA PUSHED DREVESU R194; R195 delta +1f/+18 unit + +1f/+13 IT) · PRODUCTION-VALIDATION §2 @ 8a67fef1 + zgodovina R195 + skip sweep re-verificiran (15 e2e / 0 unit+IT, nespremenjeno) · README tests badge 5561 + IT 248 + audit badge razvoj-195 + evidence vrstica + napredek segment R195 · product-status pin R195+R194 · doc-truth round pin R195 (negativni R194/R193/R192). Gates: tsc 0 · lint 0 · unit 305f/5561/0 (2× čist) · security podmnožica 110f/2127 · IT 24f/248/0 (sveža IT DB) · verify 30/30 · chain+inventory+matrix+closure regen 0-diff. Živa verifikacija: IT test tekne REALNO bazo (PGlite) skozi celoten drift→migracija→verify cikel z realnimi napakami; produkcija (Neon) ostaja nedotaknjena — aplikacija je uporabniški korak. Epik #144: closure review 31/32 MET + KNOWN_ISSUES #48 zaprt (package); ostajata #33/#36 (LOW, večji obseg); naslednja runda: proof refresh @ R195 push run + #33/#36 ali nov scope.",
+  "headCommitAtStatus": "8a67fef1",
   "stack": {
     "framework": "Next.js 16 App Router",
     "language": "TypeScript 5 (strict)",
@@ -42,14 +42,14 @@
   },
   "testEvidence": {
     "evidenceSource": "docs/PRODUCTION-VALIDATION.md §2 (CI-log-izpeljano, file-based)",
-    "unit": { "files": 304, "tests": 5543 },
-    "unitSecuritySuite": { "files": 109, "tests": 2109 },
-    "unitTotalWithSecurity": 5543,
-    "integration": { "files": 23, "tests": 235 },
+    "unit": { "files": 305, "tests": 5561 },
+    "unitSecuritySuite": { "files": 110, "tests": 2127 },
+    "unitTotalWithSecurity": 5561,
+    "integration": { "files": 24, "tests": 248 },
     "e2ePlaywright": { "passed": 234, "skipped": 4 },
     "e2eSecurity": 96,
     "ciVerification": "lokalna vrata ×2 (R172) = vir unit/integration števil; CI run za trenutni HEAD potrdi enaka vrata ob pushu (vitest štetje je deterministično na istem drevesu)",
-    "ciLastFileBasedProof": "HEAD 660a74bf (R193) — CI run 36855872713: 7/7 jobov success attempt=1 (Unit 304f/5543 = vključno security podmnožica 109f/2109 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration, Security Audit) + Monitor ×2 success + E2E run 36855872743 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); številke iz CI logov; R193 (§22 closure review 31/32 MET) CI-potrjena z ZERO delta ŽE NA PUSHED DREVESU (CI ≡ lokalna vrata R193 popolnoma, brez delta-okna); R194 (osvežitev dokaza — samo dokumentacijski pini, brez produkcijske kode) doda +0f/+0 → lokalna vrata 304f/5543 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R194)",
+    "ciLastFileBasedProof": "HEAD 8a67fef1 (R194) — CI run 36865220720: 7/7 jobov success attempt=1 (Unit 304f/5543 = vključno security podmnožica 109f/2109 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration, Security Audit) + Monitor ×2 success + E2E run 36865220728 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); številke iz CI logov; R194 (osvežitev dokaza) CI-potrjena z ZERO delta ŽE NA PUSHED DREVESU (CI ≡ lokalna vrata R194 popolnoma, brez delta-okna); R195 (#48 Neon locationId migration package: IT +1f/+13 + unit drift-gate +1f/+18) doda → lokalna vrata 305f/5561 + IT 24f/248 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R195)",
     "verifyFeatures": "30/30 (npx tsx scripts/verify-features.ts)"
   },
   "deployedEnvironment": {
@@ -83,7 +83,8 @@
     "FURS certifikat — pridobitev na eDavki portalu (uporabniški korak)",
     "Stripe production keys (uporabniški korak)",
     "FINA P12 certifikat (uporabniški korak)",
-    "ENCRYPTION_KEY v Vercel envs + db:encrypt-secrets po deployu (R168, uporabniški korak — fail-closed brez njega)"
+    "ENCRYPTION_KEY v Vercel envs + db:encrypt-secrets po deployu (R168, uporabniški korak — fail-closed brez njega)",
+    "Neon locationId migration aplikacija (R195 package pripravljen + testiran — uporabniški korak ob dostopu do Neon produkcije)"
   ],
   "knownLimitations": [
     "FURS NI fizično validiran (sim-mode strukturna validacija ≠ produkcijska validacija)",

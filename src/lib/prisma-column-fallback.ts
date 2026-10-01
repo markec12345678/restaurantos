@@ -18,6 +18,17 @@
 // zato je TRAJNA REŠITEV `prisma db push` na Neonu, po katerem fallback
 // samodejno izgubi vlogo (P1054 se ne zgodi več).
 //
+// TRAJNA REŠITEV (R195 — package pripravljen + testiran na PGlite):
+//   scripts/r195-neon-locationid-migration.sql  (EN vir resnice, idempotenten:
+//     ADD COLUMN IF NOT EXISTS + dinamičen backfill + SET NOT NULL + FK
+//     RESTRICT + CREATE INDEX = @@index pariteta na vseh 11 tabelah)
+//   scripts/r195-apply-locationid-migration.mjs (fail-closed applier:
+//     postgres URL guard, Location count === 1 varovalka, post-verify,
+//     orphan check)
+// IT dokaz celotnega cikla (drift simulacija → aplikacija → verify):
+//   tests/integration/r195-neon-locationid-migration.test.ts
+// Po aplikaciji P2022/P2010 ne nastopi več → most samodejno izgubi vlogo.
+//
 // Uporaba:
 //   const item = await withLocationColumnFallback('config:noSaleReason', (withLoc) =>
 //     db.noSaleReason.create({ data: withLoc ? dataWithLoc : dataWithoutLoc }))
@@ -41,7 +52,7 @@ import { logger } from './logger'
  * zgornji vzorec. Run(false) veja NE sme podati locationId (P2022).
  */
 
-// P1054/P2022 "column locationId does not exist" detektor.
+// P1054/P2022/P2010 "column locationId does not exist" detektor.
 //
 // FIX QA runda 39 (hotfix 2): Prisma koda za "column does not exist" je P2022
 // (ne P1054 kot sem prvotno zmotno predpostavil). Sprejmi oba za varnost.
@@ -49,10 +60,17 @@ import { logger } from './logger'
 // v Next.js bundleju obstajata DVE kopiji @prisma/client (app koda vs. generated
 // engine client) → instanceof vedno false → fallback se nikoli ne sproži.
 // Duck-typing po `code` + `message` je odporen na dual-copy problem.
+//
+// FIX R195: driver-adapter pot (PGlite — pglite-prisma-adapter, dev/test/self-host)
+// NE prevaja PG napak v Prisma P-code: raw/model pad pride kot P2010 ("Raw query
+// failed. Code: `42703`. Message: ... column "locationId" of relation ... does not
+// exist"). Realni engine (Neon produkcija) vrača P2022/P1054. Skupni imenovalec
+// je SPOROČILO — P2010 sprejemamo pod ISTIM sporočilnim regexom (fail-closed:
+// brez ustreznega sporočila se fallback NE sproži).
 export function isMissingLocationColumnError(e: unknown): boolean {
   if (typeof e !== 'object' || e === null) return false
   const err = e as { code?: unknown; message?: unknown; name?: unknown }
-  if (err.code !== 'P2022' && err.code !== 'P1054') return false
+  if (err.code !== 'P2022' && err.code !== 'P1054' && err.code !== 'P2010') return false
   const msg = String(err.message ?? '')
   return /locationId.*does not exist|does not exist.*locationId/i.test(msg)
 }
