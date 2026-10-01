@@ -67,6 +67,7 @@ Statusne oznake:
 | [docs/MODULE-INVENTORY.md](./MODULE-INVENTORY.md) | GENERIRAN | `bun run inventory` | tests/unit/lib/module-registry.test.ts |
 | [docs/VALIDATION-MATRIX.md](./VALIDATION-MATRIX.md) | GENERIRAN | `bun run matrix` | tests/unit/lib/validation-matrix.test.ts |
 | [docs/BUSINESS-CHAIN.md](./BUSINESS-CHAIN.md) | GENERIRAN | `bun run chain` | tests/unit/lib/business-chain.test.ts |
+| [docs/EPIC-144-CLOSURE-REVIEW.md](./EPIC-144-CLOSURE-REVIEW.md) | GENERIRAN | `bun run closure` | tests/unit/lib/epic-closure.test.ts |
 
 ## 6. Skupnostne datoteke (.github)
 

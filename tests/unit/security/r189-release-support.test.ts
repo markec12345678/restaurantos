@@ -97,7 +97,12 @@ describe('R189: RELEASE-SUPPORT-INDEX.md — inventar (epik #144 §22 korak 22)'
   })
 
   it('statusni pini GENERIRAN — generirani artefakti z generatorji', () => {
-    for (const doc of ['MODULE-INVENTORY.md', 'VALIDATION-MATRIX.md', 'BUSINESS-CHAIN.md']) {
+    for (const doc of [
+      'MODULE-INVENTORY.md',
+      'VALIDATION-MATRIX.md',
+      'BUSINESS-CHAIN.md',
+      'EPIC-144-CLOSURE-REVIEW.md',
+    ]) {
       const line = lineWith(indexSrc, doc, 'GENERIRAN')
       expect(line, `${doc} mora biti GENERIRAN v inventarju`).toBeTruthy()
     }
@@ -105,6 +110,7 @@ describe('R189: RELEASE-SUPPORT-INDEX.md — inventar (epik #144 §22 korak 22)'
     expect(indexSrc).toContain('bun run inventory')
     expect(indexSrc).toContain('bun run matrix')
     expect(indexSrc).toContain('bun run chain')
+    expect(indexSrc).toContain('bun run closure')
   })
 
   it('register vrzeli: 4 vrzeli REŠENE R189 + produkcija postavka izrecno ločena', () => {
