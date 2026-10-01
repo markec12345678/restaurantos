@@ -40,8 +40,10 @@ describe('PRODUCT-STATUS.md — verzija brez drifta (#144 §12)', () => {
     expect(status?.['versionSource']).toBe('package.json')
   })
 
-  it('statusUpdatedRound navaja rundi izvora (R185: A6 enoten zapiralni kanon smene — P1 faza)', () => {
-    expect(String(status?.['statusUpdatedRound'])).toContain('R185')
+  it('statusUpdatedRound navaja rundi izvora (R186: osvežitev dokaza @ b5c8c0ba; R185: A6 — P1 faza zaključena)', () => {
+    const round = String(status?.['statusUpdatedRound'])
+    expect(round).toContain('R186')
+    expect(round).toContain('R185')
   })
 })
 
