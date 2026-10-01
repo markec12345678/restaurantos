@@ -27,22 +27,22 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `8a67fef1` — osveženo R195, epik #144: KNOWN_ISSUES #48 — Neon locationId drift-most trajna rešitev, package pripravljen + testiran)
+## 2. CI / repository evidence (HEAD `2addbb92` — osveženo R196, epik #144: osvežitev dokaza @ R195 push run)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36865220720` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
-| E2E run | `36865220728` — **success** (Playwright: 234 passed / 4 skipped) |
+| CI run | `36871730253` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
+| E2E run | `36871730155` — **success** (Playwright: 234 passed / 4 skipped) |
 | run_attempt | CI run 7/7 = attempt 1 (API verified); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 304 fajlov / **5543** testov, 0 skipped — `test:unit` vključuje security suite (109 fajlov / **2109** = podmnožica job-a; R177-d semantika, ne seštevek) |
-| Integration (CI log) | 23 fajlov / **235** testov, 0 skipped |
-| E2E Security | **96 passed** (job log grep; enak kot R178–R194 runi — od takrat ni novih security specov) |
-| Lokalna reprodukcija | vitest run 5561/5561 (305 fajlov), exit 0 (R195 lokalna vrata: KNOWN_ISSUES #48 Neon locationId drift-most trajna rešitev — NOV idempotenten migration package scripts/r195-neon-locationid-migration.sql + fail-closed applier + IT dokaz celotnega cikla + unit drift-gate 18 testov; +1f/+18 unit + IT 24f/248 +1f/+13; monotono ≥ R194 5543 — CI run 36865220720 @ 8a67fef1 potrdi 5543 ŽE NA PUSHED DREVESU R194 z ZERO delta) |
+| Unit (CI log) | 305 fajlov / **5561** testov, 0 skipped — `test:unit` vključuje security suite (110 fajlov / **2127** = podmnožica job-a; R177-d semantika, ne seštevek) |
+| Integration (CI log) | 24 fajlov / **248** testov, 0 skipped |
+| E2E Security | **96 passed** (job log grep; enak kot R178–R195 runi — od takrat ni novih security specov) |
+| Lokalna reprodukcija | vitest run 5561/5561 (305 fajlov), exit 0 (R196 lokalna vrata: čisto osvežitev dokaza — brez produkcijskih sprememb, +0f/+0, samo dokumentacijski pini; monotono ≥ R194 5543 — CI run 36871730253 @ 2addbb92 potrdi 5561 ŽE NA PUSHED DREVESU R195 z ZERO delta) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R195, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
+Skipped/todo sweep (re-verificirano R196, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
-furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R185–R195 niso dodali novih skipov.
+furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R196 niso dodali novih skipov.
 
 > Zgodovina osvežitev §2: R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
 > 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
@@ -63,6 +63,7 @@ furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R185–R195 nis
 > R193 @ 99f14c86 (run 36850932502, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R192 5527/303 z ZERO delta; epik #144 §22 closure review: NOV generiran docs/EPIC-144-CLOSURE-REVIEW.md — 32 postavk v 8 sekcijah × 103 fail-closed dokaznih sidr, 31/32 MET (pilot-gate or-veja readinessGate §16; pilot-findings izrecno N/A), anti-overclaim builder pogoj na pilotStatus.executed=false + physicalValidationStatus false, drift-gate +1f/+16).
 > R194 @ 660a74bf (run 36855872713, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R193 5543/304 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po §22 closure review — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R193 → R194).
 > R195 @ 8a67fef1 (run 36865220720, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R194 5543/304 z ZERO delta ŽE NA PUSHED DREVESU; epik #144 KNOWN_ISSUES #48: Neon locationId drift-most trajna rešitev — NOV idempotenten migration package scripts/r195-neon-locationid-migration.sql (11 tabel × 6 stavkov: ADD COLUMN IF NOT EXISTS + dinamičen backfill + SET NOT NULL + FK RESTRICT + CREATE INDEX) + fail-closed applier + IT dokaz celotnega cikla (drift simulacija → detektor P2010 duck-typing → most run(false) → migracija → pariteta → backfill → FK 23503 → idempotenca) + unit drift-gate 18 testov; aplikacija na Neon = uporabniški korak; +1f/+18 unit + +1f/+13 IT).
+> R196 @ 2addbb92 (run 36871730253, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R195 5561/305 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po R195 #48 Neon locationId migration package — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R195 → R196).
 
 > Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
 
