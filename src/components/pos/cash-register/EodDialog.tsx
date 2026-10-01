@@ -16,14 +16,14 @@ import { EodPaymentMethods } from './EodPaymentMethods'
 import { EodCostAnalysis } from './EodCostAnalysis'
 import { EodEmployeeBreakdown } from './EodEmployeeBreakdown'
 import { EodCloseForm } from './EodCloseForm'
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EodData = any
+import type { EodReportData } from '@/app/api/reports/eod/types'
 
 interface EodDialogProps {
   open: boolean
   onOpenChange: (_open: boolean) => void
-  eodData: EodData
+  // R191: useQuery data je lahko null/undefined (nalaganje) — EodDialog ga
+  // narije v !eodData veji (vrstica ~58), otroci prejmejo EodReportData.
+  eodData: EodReportData | null | undefined
   eodLoading: boolean
   form: EodFormType
   onFormChange: (_form: EodFormType) => void

@@ -3,11 +3,10 @@
 import { memo } from 'react'
 import { formatEUR } from '@/lib/safe-format'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EodData = any
+import type { EodReportData } from '@/app/api/reports/eod/types'
 
 interface EodEmployeeBreakdownProps {
-  eodData: EodData
+  eodData: EodReportData
 }
 
 export const EodEmployeeBreakdown = memo(function EodEmployeeBreakdown({ eodData }: EodEmployeeBreakdownProps) {
@@ -17,7 +16,7 @@ export const EodEmployeeBreakdown = memo(function EodEmployeeBreakdown({ eodData
       <div className="bg-muted/50 p-2 font-medium text-sm">Pregled po zaposlenih</div>
       {eodData.employeeBreakdown.map((emp: { employeeId: string; employeeName?: string; orderCount: number; revenue: number; tips: number }, i: number) => (
         <div key={i} className="flex items-center justify-between text-sm p-2 border-b last:border-0">
-          <span>{String((emp as Record<string, unknown>).employeeName || emp.employeeId)}</span>
+          <span>{String(emp.employeeName || emp.employeeId)}</span>
           <div className="flex items-center gap-3">
             <span className="text-muted-foreground">{emp.orderCount} naročil</span>
             <span className="font-semibold">{formatEUR(emp.revenue)}</span>

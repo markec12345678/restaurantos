@@ -4,11 +4,10 @@ import { memo } from 'react'
 import { Receipt } from 'lucide-react'
 import { formatEUR } from '@/lib/safe-format'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EodData = any
+import type { EodReportData } from '@/app/api/reports/eod/types'
 
 interface EodVatBreakdownProps {
-  eodData: EodData
+  eodData: EodReportData
 }
 
 export const EodVatBreakdown = memo(function EodVatBreakdown({ eodData }: EodVatBreakdownProps) {

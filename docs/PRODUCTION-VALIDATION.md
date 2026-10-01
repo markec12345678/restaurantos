@@ -27,22 +27,22 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `fa1aa6ee` — osveženo R190, P2 korak 23: selective tech debt)
+## 2. CI / repository evidence (HEAD `5f10fceb` — osveženo R191, P2 faza: tech debt sweep — EOD wire tip + ratchet znižanje)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36834490007` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
-| E2E run | `36834489844` — **success** (Playwright: 234 passed / 4 skipped) |
+| CI run | `36838096925` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
+| E2E run | `36838098046` — **success** (Playwright: 234 passed / 4 skipped) |
 | run_attempt | CI run 7/7 = attempt 1 (API verified); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 300 fajlov / **5450** testov, 0 skipped — `test:unit` vključuje security suite (106 fajlov / **2032** = podmnožica job-a; R177-d semantika, ne seštevek) |
+| Unit (CI log) | 301 fajlov / **5462** testov, 0 skipped — `test:unit` vključuje security suite (107 fajlov / **2044** = podmnožica job-a; R177-d semantika, ne seštevek) |
 | Integration (CI log) | 23 fajlov / **235** testov, 0 skipped |
 | E2E Security | **96 passed** (job log grep; enak kot R178/R179 run — od takrat ni novih security specov) |
-| Lokalna reprodukcija | vitest run 5462/5462 (301 fajlov), exit 0 (R190 lokalna vrata, +1f/+12 P2-23 tech-debt ratchet gate; monotono ≥ R189 5450 — CI run 36834490007 @ fa1aa6ee potrdi 5450 na pushed drevesu z ZERO delta) |
+| Lokalna reprodukcija | vitest run 5491/5491 (302 fajlov), exit 0 (R191 lokalna vrata, +1f/+29 P2 tech-debt sweep gate: kanonski EodReportData wire tip + ratchet ≤ 31; monotono ≥ R190 5462 — CI run 36838096925 @ 5f10fceb potrdi 5462 na pushed drevesu z ZERO delta) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R190, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
+Skipped/todo sweep (re-verificirano R191, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
-furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R185–R190 niso dodali novih skipov.
+furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R185–R191 niso dodali novih skipov.
 
 > Zgodovina osvežitev §2: R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
 > 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
@@ -58,6 +58,7 @@ furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R185–R190 nis
 > R188 @ 5315e89e (run 36824838355, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa; P2 korak 21 finalize #141 product presentation/video: NOV docs/PRODUCT-VIDEO-STORYBOARD.md — realna zgodba preslikana na realne module/komponente/rute, priloga A = vseh 76 modulov, VIDEO-TUTORIALS zgodovinski + DEMO markacija, drift-gate +1f/+16).
 > R189 @ c733414d (run 36829054559, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R188 5436/299 z ZERO delta; P2 korak 22 release/support/runbook material: NOV .github/SUPPORT.md + docs/RELEASE-SUPPORT-INDEX.md inventar z register vrzeli (4 rešene R189), ZGODOVINSKI bannerja na PRODUCTION-CHECKLIST/LAUNCH-CHECKLIST, SECURITY.md Supported Versions ≡ package.json, drift-gate +1f/+14).
 > R190 @ fa1aa6ee (run 36834490007, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R189 5450/300 z ZERO delta; P2 korak 23 selective tech debt: 40 no-explicit-any supresij iz finančne jedre (FURS verify/storno + Z-report stats + VAT) → realni domenski tipi, ratchet drift-gate +1f/+12).
+> R191 @ 5f10fceb (run 36838096925, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R190 5462/301 z ZERO delta; P2 faza tech debt sweep: NOV kanonski EodReportData wire tip (src/app/api/reports/eod/types.ts) za 10 EOD komponent + 9 supresij iz FURS batch/Z-report/dashboard/receipts, ratchet znižan 50 → 31, drift-gate +1f/+29).
 
 > Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
 

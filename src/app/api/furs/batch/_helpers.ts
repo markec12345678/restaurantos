@@ -3,6 +3,8 @@
 
 import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
+import type { DecimalLike } from '@/lib/decimal'
+import type { Prisma } from '@prisma/client'
 import { generateZOI, verifyInvoiceWithFURS, type FursConfig, type FursInvoiceData } from '@/lib/furs'
 import { parseVatBreakdown } from '../shared'
 import { logger } from '@/lib/logger'
@@ -74,9 +76,33 @@ export async function fetchAndLockUnverifiedReceipts(): Promise<string[]> {
 }
 
 // Obdelaj posamezen račun v batchu
+// R191 (epik #144 P2 faza — tech debt sweep): `any` supresiji odstranjeni —
+// strukturni vhodni tipi (R190 vzorec StatsPaidOrder): pokrijejo Prisma
+// include payload iz route (BatchReceipt) IN minimalne literale iz
+// tests/unit/furs/r166-batch-key.test.ts (polni Prisma modeli bi podrl r166).
+
+/** Račun za batch fiskalizacijo — polja, ki jih processBatchReceipt bere. */
+export interface BatchReceiptLike {
+  id: string
+  receiptNumber: string
+  createdAt: Date
+  total: DecimalLike
+  paymentMethod: string
+  vatBreakdown: unknown
+}
+
+/** Nastavitve za ZOI — polja, ki jih processBatchReceipt bere. */
+export interface BatchSettingsLike {
+  taxId: string
+  registerNumber: string
+}
+
+/** Račun z order.locationId (oblika iz findMany include v batch route). */
+export type BatchReceipt = Prisma.ReceiptGetPayload<{ include: { order: { select: { locationId: true } } } }>
+
 export async function processBatchReceipt(
-  receipt: any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  settings: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  receipt: BatchReceiptLike,
+  settings: BatchSettingsLike,
   config: FursConfig,
   privateKey: string | Buffer | undefined, // R166 (F1): union — loader vrača string PEM
 ): Promise<BatchReceiptResult> {

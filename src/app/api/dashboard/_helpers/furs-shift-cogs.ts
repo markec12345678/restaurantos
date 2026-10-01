@@ -2,6 +2,8 @@
 
 import { db } from '@/lib/db'
 import { toNum, round2, abs } from '@/lib/decimal'
+import type { DecimalLike } from '@/lib/decimal'
+import type { CashRegisterShift } from '@prisma/client'
 import type { FursShiftCogsResult } from './types'
 
 // ─── FURS status, aktivna izmena, COGS ─────────────────────
@@ -27,10 +29,10 @@ export async function fetchFursShiftCogs(
   // FIX: Wrap v try-catch — production DB morda nima vseh stolpcev
   let todayVerifiedReceipts = 0
   let todayUnverifiedReceipts = 0
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let activeShift: any = null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let stockMovements: Array<any> = []
+  // R191: realni domenski tipi (Prisma payload) namesto any — R190 vzorec.
+  // .catch fallbacki ohranijo tipe: null / [] sta združljiva z deklaracijami.
+  let activeShift: CashRegisterShift | null = null
+  let stockMovements: Array<{ totalCost: DecimalLike }> = []
 
   try {
     [todayVerifiedReceipts, todayUnverifiedReceipts, activeShift, stockMovements] = await Promise.all([

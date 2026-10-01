@@ -5,8 +5,8 @@ import type { DecimalLike } from '@/lib/decimal'
 
 // ─── Tipi za EOD metrike ───
 export interface VatGroup { vatRate: DecimalLike; _sum: { vatAmount: DecimalLike } }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface PaymentGroup { type: string; _count: any; _sum: { amount: DecimalLike; tipAmount: DecimalLike } }
+// R191: _count: number — db.payment.groupBy({ _count: true }) vrača števec
+export interface PaymentGroup { type: string; _count: number; _sum: { amount: DecimalLike; tipAmount: DecimalLike } }
 export interface CategoryItemGroup { menuItemId: string; price: DecimalLike; _sum: { quantity: number | null } }
 export interface EmployeeGroup { employeeId: string | null; _count: number; _sum: { total: DecimalLike; tip: DecimalLike } }
 export interface HourlyOrder { paidAt: Date | null; createdAt: Date; total: DecimalLike }

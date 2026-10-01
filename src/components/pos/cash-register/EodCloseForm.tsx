@@ -9,11 +9,10 @@ import { CalendarCheck, FileText } from 'lucide-react'
 import type { EodFormType } from './constants'
 import { safeToFixed } from '@/lib/safe-format'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EodData = any
+import type { EodReportData } from '@/app/api/reports/eod/types'
 
 interface EodCloseFormProps {
-  eodData: EodData
+  eodData: EodReportData
   form: EodFormType
   onFormChange: (_form: EodFormType) => void
   onSubmit: () => void

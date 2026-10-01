@@ -3,11 +3,10 @@
 import { memo } from 'react'
 import { AlertTriangle } from 'lucide-react'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EodData = any
+import type { EodReportData } from '@/app/api/reports/eod/types'
 
 interface EodPendingWarningProps {
-  eodData: EodData
+  eodData: EodReportData
 }
 
 export const EodPendingWarning = memo(function EodPendingWarning({ eodData }: EodPendingWarningProps) {

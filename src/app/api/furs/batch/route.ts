@@ -14,7 +14,7 @@ import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { validateFursConfig, loadCertificatePrivateKey } from '@/lib/furs'
 import { handleApiError } from '@/lib/api-utils'
 import { ensureDecrypted } from '@/lib/crypto/secrets'
-import { buildFursConfig, fetchAndLockUnverifiedReceipts, processBatchReceipt, type BatchReceiptResult } from './_helpers'
+import { buildFursConfig, fetchAndLockUnverifiedReceipts, processBatchReceipt, type BatchReceipt, type BatchReceiptResult } from './_helpers'
 
 
 export const dynamic = 'force-dynamic'
@@ -58,7 +58,9 @@ export async function POST(req: Request) {
     const receiptIds = await fetchAndLockUnverifiedReceipts()
 
     // Pridobi podatke računov z order.locationId
-    const unverifiedReceipts = receiptIds.length > 0
+    // R191: ekspliciten BatchReceipt payload tip → receipt.order?.locationId
+    // dostop neposredno (prej: cast prek eksplicitne supresije, vrstica ~144)
+    const unverifiedReceipts: BatchReceipt[] = receiptIds.length > 0
       ? await db.receipt.findMany({
           where: { id: { in: receiptIds } },
           orderBy: { createdAt: 'asc' },
@@ -140,8 +142,7 @@ export async function POST(req: Request) {
     // Obdelaj račune zaporedno (FURS ima omejitev na hitrost zahtevkov)
     for (let i = 0; i < unverifiedReceipts.length; i++) {
       const receipt = unverifiedReceipts[i]
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const receiptLocationId = (receipt as any).order?.locationId ?? null
+      const receiptLocationId = receipt.order?.locationId ?? null
       const cached = await getConfigForLocation(receiptLocationId)
 
       let result: BatchReceiptResult

@@ -3,11 +3,10 @@
 import { memo } from 'react'
 import { formatEUR } from '@/lib/safe-format'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EodData = any
+import type { EodReportData } from '@/app/api/reports/eod/types'
 
 interface EodSummaryStatsProps {
-  eodData: EodData
+  eodData: EodReportData
 }
 
 export const EodSummaryStats = memo(function EodSummaryStats({ eodData }: EodSummaryStatsProps) {

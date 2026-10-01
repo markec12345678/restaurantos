@@ -2,6 +2,7 @@
 // GET /api/receipts/[id] — pomožni modul za gradnjo računov
 
 import { toNum } from '@/lib/decimal'
+import type { DecimalLike } from '@/lib/decimal'
 import { buildReceiptItems, buildVatBreakdown, generateZOIPlaceholder, DEFAULT_SETTINGS } from './_helpers'
 
 // ─── Tipi ───
@@ -14,10 +15,10 @@ interface OrderForGetReceipt {
   paymentMethod: string | null
   customerName: string | null
   notes: string | null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  discount: any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tip: any
+  // R191: DecimalLike — toNum kontrakt (Prisma Order.discount/tip je Decimal;
+  // strukturno sprejme tudi številske/string literale)
+  discount: DecimalLike
+  tip: DecimalLike
   createdAt: Date
   table: { number: number; area: string | null } | null
   orderItems: Parameters<typeof buildReceiptItems>[0]

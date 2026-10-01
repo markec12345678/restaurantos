@@ -40,10 +40,10 @@ describe('PRODUCT-STATUS.md — verzija brez drifta (#144 §12)', () => {
     expect(status?.['versionSource']).toBe('package.json')
   })
 
-  it('statusUpdatedRound navaja rundi izvora (R190: P2 korak 23 — selective tech debt; R189: P2 korak 22 — release/support/runbook material)', () => {
+  it('statusUpdatedRound navaja rundi izvora (R191: P2 tech debt sweep — EOD wire tip + ratchet znižanje; R190: P2 korak 23 — selective tech debt)', () => {
     const round = String(status?.['statusUpdatedRound'])
+    expect(round).toContain('R191')
     expect(round).toContain('R190')
-    expect(round).toContain('R189')
   })
 })
 

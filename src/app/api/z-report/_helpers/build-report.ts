@@ -1,6 +1,7 @@
 // Pomožne funkcije za Z-report route — Gradnja podatkov poročila
 
 import { round2, divide, subtract } from '@/lib/decimal'
+import type { CashRegisterShift } from '@prisma/client'
 import type { ZReportStats } from './stats'
 
 // Zgradi podatke za Z-poročilo
@@ -13,7 +14,9 @@ export function buildReportData(
   finalize: boolean,
   employeeId: string | undefined,
   locationId: string | undefined,
-  cashShifts: any[], // eslint-disable-line @typescript-eslint/no-explicit-any
+  // R191: realni domenski tip (Prisma model) — klicalec upsert-z-report passa
+  // tx.cashRegisterShift.findMany payload (R190 vzorec)
+  cashShifts: CashRegisterShift[],
 ) {
   const grossProfit = round2(stats.totalNetSales - stats.totalCost)
   const grossMargin = stats.totalNetSales > 0 ? round2(divide(grossProfit * 100, stats.totalNetSales)) : 0

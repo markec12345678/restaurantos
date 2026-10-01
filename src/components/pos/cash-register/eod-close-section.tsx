@@ -8,11 +8,10 @@ import { Separator } from '@/components/ui/separator'
 import { CalendarCheck, FileText } from 'lucide-react'
 import { safeToFixed } from '@/lib/safe-format'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EodData = any
+import type { EodReportData } from '@/app/api/reports/eod/types'
 
 interface EodCloseSectionProps {
-  eodData: EodData
+  eodData: EodReportData
   form: { closingCash: string; notes: string }
   onFormChange: (_form: { closingCash: string; notes: string }) => void
   onSubmit: () => void

@@ -5,11 +5,10 @@ import { Wallet } from 'lucide-react'
 import { formatEUR } from '@/lib/safe-format'
 import { paymentMethodLabelSl } from '@/lib/payment-methods-sl' // R62: enoten vir oznak
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EodData = any
+import type { EodReportData } from '@/app/api/reports/eod/types'
 
 interface EodPaymentMethodsProps {
-  eodData: EodData
+  eodData: EodReportData
 }
 
 export const EodPaymentMethods = memo(function EodPaymentMethods({ eodData }: EodPaymentMethodsProps) {
