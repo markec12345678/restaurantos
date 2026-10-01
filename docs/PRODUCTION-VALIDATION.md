@@ -27,22 +27,22 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `35676c66` — osveženo R198, epik #144: osvežitev dokaza @ R197 push run)
+## 2. CI / repository evidence (HEAD `2d1faa3a` — osveženo R199, epik #144: osvežitev dokaza @ R198 push run)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36887095820` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
-| E2E run | `36887095797` — **success** (Playwright: 234 passed / 4 skipped) |
+| CI run | `36896276358` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
+| E2E run | `36896276382` — **success** (Playwright: 234 passed / 4 skipped) |
 | run_attempt | CI run 7/7 = attempt 1 (API verified); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
 | Unit (CI log) | 306 fajlov / **5572** testov, 0 skipped — `test:unit` vključuje security suite (110 fajlov / **2127** = podmnožica job-a; R177-d semantika, ne seštevek) |
 | Integration (CI log) | 24 fajlov / **248** testov, 0 skipped |
-| E2E Security | **96 passed** (job log grep; enak kot R178–R197 runi — od takrat ni novih security specov) |
-| Lokalna reprodukcija | vitest run 5572/5572 (306 fajlov), exit 0 (R198 lokalna vrata: čisto osvežitev dokaza @ R197 push run — +0f/+0, samo dokumentacijski pini doc-truth/product-status R197 → R198; monotono ≥ R197 5572 — CI run 36887095820 @ 35676c66 potrdi 5572 ŽE NA PUSHED DREVESU R197 z ZERO delta) |
+| E2E Security | **96 passed** (job log grep; enak kot R178–R198 runi — od takrat ni novih security specov) |
+| Lokalna reprodukcija | vitest run 5572/5572 (306 fajlov), exit 0 (R199 lokalna vrata: čisto osvežitev dokaza @ R198 push run — +0f/+0, samo dokumentacijski pini doc-truth/product-status R198 → R199; monotono ≥ R198 5572 — CI run 36896276358 @ 2d1faa3a potrdi 5572 ŽE NA PUSHED DREVESU R198 z ZERO delta) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R198, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
+Skipped/todo sweep (re-verificirano R199, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
-furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R198 niso dodali novih skipov.
+furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R199 niso dodali novih skipov.
 
 > Zgodovina osvežitev §2: R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
 > 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
@@ -66,6 +66,7 @@ furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R198 nis
 > R196 @ 2addbb92 (run 36871730253, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R195 5561/305 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po R195 #48 Neon locationId migration package — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R195 → R196).
 > R197 @ d03b1269 (run 36878858215, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R196 5561/305 z ZERO delta ŽE NA PUSHED DREVESU; epik #144 KNOWN_ISSUES #33 zaključek: NOV schema-paritetni drift-gate tests/unit/lib/json-fields-schema-parity.test.ts 11 testov — 25 inventariziranih polj ≡ Json v shemi ≡ natanko 25 TYPE JSONB stavkov @ 0022_json_fields ≡ JSON_WIRE_FIELDS pokritje, 6 ostankov ≡ String byte-exact z izrecnimi utemeljitvami (modifiersJson dual-write, AuditLog.details hash veriga, WebhookDelivery.payload HMAC, apiKeys deprecatiran keystore, MenuItem/Modifier.allergens CSV); KNOWN_ISSUES #33 LOW → FIXED + closure generator usklajen + regen; +1f/+11 unit).
 > R198 @ 35676c66 (run 36887095820, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R197 5572/306 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po R197 #33 zaključek — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R197 → R198).
+> R199 @ 2d1faa3a (run 36896276358, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R198 5572/306 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po R198 refresh — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R198 → R199).
 
 > Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
 

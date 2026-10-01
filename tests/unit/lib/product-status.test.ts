@@ -40,10 +40,10 @@ describe('PRODUCT-STATUS.md — verzija brez drifta (#144 §12)', () => {
     expect(status?.['versionSource']).toBe('package.json')
   })
 
-  it('statusUpdatedRound navaja rundi izvora (R198: osvežitev dokaza @ 35676c66; R197: KNOWN_ISSUES #33 zaključek — schema-paritetni drift-gate)', () => {
+  it('statusUpdatedRound navaja rundi izvora (R199: osvežitev dokaza @ 2d1faa3a; R198: osvežitev dokaza @ 35676c66)', () => {
     const round = String(status?.['statusUpdatedRound'])
+    expect(round).toContain('R199')
     expect(round).toContain('R198')
-    expect(round).toContain('R197')
   })
 })
 
