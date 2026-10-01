@@ -40,10 +40,10 @@ describe('PRODUCT-STATUS.md — verzija brez drifta (#144 §12)', () => {
     expect(status?.['versionSource']).toBe('package.json')
   })
 
-  it('statusUpdatedRound navaja rundi izvora (R193: epik #144 §22 closure review — 31/32 MET; R192: P2 FULL SWEEP — ratchet 0)', () => {
+  it('statusUpdatedRound navaja rundi izvora (R194: osvežitev dokaza @ 660a74bf; R193: §22 closure review — 31/32 MET)', () => {
     const round = String(status?.['statusUpdatedRound'])
+    expect(round).toContain('R194')
     expect(round).toContain('R193')
-    expect(round).toContain('R192')
   })
 })
 
