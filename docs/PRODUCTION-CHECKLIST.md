@@ -1,5 +1,12 @@
 # RestaurantOS — Production Operations Checklist
 
+> **⚠️ ZGODOVINSKI DOKUMENT (arhivska vrednost)** — odseva stanje **v1.0.1**
+> (2026-09-06). NE odseva trenutnega produkta (v1.26.0). Številke in ocene
+> spodaj so **zgodovinske iz časa pisanja** — niso evidence-backed za trenutni
+> HEAD. Avtoritativni status: [docs/PRODUCT-STATUS.md](./PRODUCT-STATUS.md);
+> trenutna CI evidence: [docs/PRODUCTION-VALIDATION.md §2](./PRODUCTION-VALIDATION.md);
+> inventar release/runbook materiala: [docs/RELEASE-SUPPORT-INDEX.md](./RELEASE-SUPPORT-INDEX.md).
+
 **Production URL:** https://restaurantos.vercel.app
 **Last updated:** 2026-09-06
 **Version:** v1.0.1 (A++ security, 1050 tests, CI 5/5 green)

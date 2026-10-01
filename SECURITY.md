@@ -4,11 +4,15 @@
 
 | Version | Supported |
 |---------|-----------|
-| v1.3.x  | ✅ Active |
-| v1.2.x  | ✅ Active (maintenance) |
-| v1.1.x  | ✅ Active (maintenance) |
-| v1.0.x  | ✅ Active (maintenance) |
+| v1.26.x | ✅ Active |
+| < v1.26 | ⚠️ Legacy (varnostni popravki po dogovoru) |
 | < v1.0  | ❌ EOL    |
+
+> **Trenutna verzija/HEAD:** [docs/PRODUCT-STATUS.md](docs/PRODUCT-STATUS.md)
+> (versionSource: package.json; statusUpdated: docs/PRODUCT-STATUS.md JSON blok).
+> Drift-gate: `tests/unit/security/r189-release-support.test.ts` zahteva, da je
+> vrstica "✅ Active" ≡ package.json major.minor — version drift v support
+> fasadi je CI-uveljavljeno preprečen (R189).
 
 ## 🔒 Security Score: A++
 

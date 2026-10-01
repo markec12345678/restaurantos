@@ -16,9 +16,9 @@
   "version": "1.26.0",
   "versionSource": "package.json",
   "statusDocVersion": 1,
-  "statusUpdated": "2026-09-30",
-  "statusUpdatedRound": "R188 (epik #144, P2 faza, korak 21 — finalize #141 product presentation/video: NOV docs/PRODUCT-VIDEO-STORYBOARD.md — definitiven storyboard produktnega videa po #141 smernicah: §18 realna zgodba (tla → miza → naročilo → kuhinja → priprava → plačilo → račun → izmena/poročanje → zaloge/nabava → food cost → analitika → poslovni pregled) preslikana scene-po-sceno (S1–S17) na REALNE registry module in REALNE komponente/rute; priloga A = popolna preslikava vseh 76 modulov (53 Da po scenah + 2 izbirno + 21 Ne z razlogom — nič tiho izpuščeno); naprave/rute (POS, /waiter, /kds, /kiosk, QR meni, /receipt, /display, /driver, /reserve), jeziki SL/EN/IT/HR/DE, FURS omejitve izrecno (certifikacija pending — video ne trdi certifikacije), demo kredence DEMO / TEST ONLY; FORENZIKA: docs/VIDEO-TUTORIALS.md (stari tehnični načrt: namestitev + PIN: 1234 brez markacije) = zgodovinski doc — banner + DEMO / TEST ONLY opozorilo + kazalec na storyboard; trajen drift-gate: tests/unit/security/r188-video-storyboard.test.ts 16 testov (pokritost vseh 76 registry modulov v prilogi A + fs-verifikacija vseh omenjenih screen/route poti + negativni pini konkurenca/primerjalne cene/tehnične metrike v narrativu + DEMO markacija) — P2-21 zdaj CI-uveljavljen; osvežitev dokaza: ciLastFileBasedProof → CI run 36824838355 @ 5315e89e (R187 drevo, 7/7 + Monitor ×2 + E2E 36824838347 234/4 — številke iz CI logov); prej R187: P2 korak 20 — finalize product claims and evidence (javna fasada očiščena konkurenčnih primerjav po §18/#141, drift-gate +1 test); R186: osvežitev dokaza @ b5c8c0ba — P1 faza ZAKLJUČENA (A0–A9))",
-  "headCommitAtStatus": "5315e89e",
+  "statusUpdated": "2026-10-01",
+  "statusUpdatedRound": "R189 (epik #144, P2 faza, korak 22 — prepare release/support/runbook material: NOV .github/SUPPORT.md — izhodiščna točka podpore, preslika potrebe → kanal → izvor resnice (SLA §2/§6 za odzivne čase/tier-je, SECURITY za varnost nikoli javni issue, KNOWN_ISSUES preveri pred prijavo, CLIENT-ONBOARDING, DR, deployment runbook), brez podvajanja števil; NOV docs/RELEASE-SUPPORT-INDEX.md — enoten inventar release/runbook/support materiala s statusi AKTIVEN/ZGODOVINSKI/GENERIRAN + register vrzeli; FORENZIKA: 4 vrzeli rešene R189 — (1) SUPPORT.md je manjkal (GitHub community standard), (2) PRODUCTION-CHECKLIST.md nosi v1.0.1 trditve ('1050 tests, CI 5/5 green') v aktivnem glasu brez markacije → ZGODOVINSKI banner (vsebina arhivska), (3) PRODUCTION-LAUNCH-CHECKLIST.md nosi 'READY' iz 2026-09-02 brez markacije → ZGODOVINSKI banner, (4) SECURITY.md Supported Versions zastarela (v1.3.x 'Active', dejansko v1.26.0) → tabela ≡ package.json; trajen drift-gate: tests/unit/security/r189-release-support.test.ts 14 testov (fs-verifikacija vseh referenciranih poti v index+SUPPORT, statusni pini, register vrzeli, banner-pred-trditvami red prek index-order, SECURITY Active ≡ package.json major.minor — version drift v support fasadi CI-uveljavljeno preprečen, SUPPORT brez izmišljenih absolutnih odzivnih časov); osvežitev dokaza: ciLastFileBasedProof → CI run 36829054559 @ c733414d (R188 drevo, 7/7 + Monitor ×2 + E2E 36829054591 234/4 — številke iz CI logov, ZERO delta: CI ≡ lokalna vrata R188); prej R188: P2 korak 21 — #141 video storyboard; R187: P2 korak 20 — finalize product claims)",
+  "headCommitAtStatus": "c733414d",
   "stack": {
     "framework": "Next.js 16 App Router",
     "language": "TypeScript 5 (strict)",
@@ -42,14 +42,14 @@
   },
   "testEvidence": {
     "evidenceSource": "docs/PRODUCTION-VALIDATION.md §2 (CI-log-izpeljano, file-based)",
-    "unit": { "files": 299, "tests": 5436 },
-    "unitSecuritySuite": { "files": 105, "tests": 2018 },
-    "unitTotalWithSecurity": 5436,
+    "unit": { "files": 300, "tests": 5450 },
+    "unitSecuritySuite": { "files": 106, "tests": 2032 },
+    "unitTotalWithSecurity": 5450,
     "integration": { "files": 23, "tests": 235 },
     "e2ePlaywright": { "passed": 234, "skipped": 4 },
     "e2eSecurity": 96,
     "ciVerification": "lokalna vrata ×2 (R172) = vir unit/integration števil; CI run za trenutni HEAD potrdi enaka vrata ob pushu (vitest štetje je deterministično na istem drevesu)",
-    "ciLastFileBasedProof": "HEAD 5315e89e (R187) — CI run 36824838355: 7/7 jobov success attempt=1 (Unit 298f/5420 = vključno security podmnožica 104f/2002 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration, Security Audit) + Monitor ×2 success + E2E run 36824838347 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); številke iz CI logov; R187 (P2 korak 20 — konkurenčna-trditev drift-gate) CI-potrjen; R188 (P2 korak 21 — #141 video storyboard drift-gate) doda +1f/+16 testov → lokalna vrata 299f/5436 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R188)",
+    "ciLastFileBasedProof": "HEAD c733414d (R188) — CI run 36829054559: 7/7 jobov success attempt=1 (Unit 299f/5436 = vključno security podmnožica 105f/2018 po R177-d semantiki, Integration 23f/235, E2E Security 96, Lint&Typecheck, Build, Migration, Security Audit) + Monitor ×2 success + E2E run 36829054591 — E2E 234 passed/4 skipped (core-flow GOLDEN PATH §7 22/22 na realnem PG); številke iz CI logov; R188 (P2 korak 21 — #141 video storyboard) CI-potrjen z ZERO delta (CI ≡ lokalna vrata R188); R189 (P2 korak 22 — release/support/runbook material: SUPPORT.md + RELEASE-SUPPORT-INDEX + 2× zgodovinski banner + SECURITY version drift fix) doda +1f/+14 testov → lokalna vrata 300f/5450 — CI ob pushu potrdi enaka vrata na trenutnem drevesu; §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R189)",
     "verifyFeatures": "30/30 (npx tsx scripts/verify-features.ts)"
   },
   "deployedEnvironment": {

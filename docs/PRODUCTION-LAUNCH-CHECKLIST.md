@@ -1,5 +1,13 @@
 # 🚀 RestaurantOS — Production Launch Checklist
 
+> **⚠️ ZGODOVINSKI DOKUMENT (arhivska vrednost)** — odseva stanje priprave na
+> launch (2026-09-02). NE odseva trenutnega produkta (v1.26.0). Oznake
+> pripravljenosti spodaj so **zgodovinske iz časa pisanja** — niso
+> evidence-backed za trenutni HEAD. Avtoritativni status:
+> [docs/PRODUCT-STATUS.md](./PRODUCT-STATUS.md); trenutna CI evidence:
+> [docs/PRODUCTION-VALIDATION.md §2](./PRODUCTION-VALIDATION.md);
+> inventar materiala: [docs/RELEASE-SUPPORT-INDEX.md](./RELEASE-SUPPORT-INDEX.md).
+
 **Datum:** 2026-09-02  
 **Status:** Priprava na produkcijski launch
 

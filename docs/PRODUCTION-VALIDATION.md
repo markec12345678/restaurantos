@@ -27,22 +27,22 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `5315e89e` — osveženo R188, P2 korak 21: #141 video storyboard)
+## 2. CI / repository evidence (HEAD `c733414d` — osveženo R189, P2 korak 22: release/support/runbook material)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36824838355` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
-| E2E run | `36824838347` — **success** (Playwright: 234 passed / 4 skipped) |
+| CI run | `36829054559` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
+| E2E run | `36829054591` — **success** (Playwright: 234 passed / 4 skipped) |
 | run_attempt | CI run 7/7 = attempt 1 (API verified); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 298 fajlov / **5420** testov, 0 skipped — `test:unit` vključuje security suite (104 fajlov / **2002** = podmnožica job-a; R177-d semantika, ne seštevek) |
+| Unit (CI log) | 299 fajlov / **5436** testov, 0 skipped — `test:unit` vključuje security suite (105 fajlov / **2018** = podmnožica job-a; R177-d semantika, ne seštevek) |
 | Integration (CI log) | 23 fajlov / **235** testov, 0 skipped |
 | E2E Security | **96 passed** (job log grep; enak kot R178/R179 run — od takrat ni novih security specov) |
-| Lokalna reprodukcija | vitest run 5436/5436 (299 fajlov), exit 0 (R188 lokalna vrata, +1f/+16 P2-21 storyboard drift-gate; monotono ≥ R187 5420 — CI run 36824838355 @ 5315e89e potrdi 5420 na pushed drevesu) |
+| Lokalna reprodukcija | vitest run 5450/5450 (300 fajlov), exit 0 (R189 lokalna vrata, +1f/+14 P2-22 release/support/runbook gate; monotono ≥ R188 5436 — CI run 36829054559 @ c733414d potrdi 5436 na pushed drevesu z ZERO delta) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R188, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
+Skipped/todo sweep (re-verificirano R189, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
-furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R185–R188 niso dodali novih skipov.
+furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R185–R189 niso dodali novih skipov.
 
 > Zgodovina osvežitev §2: R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
 > 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
@@ -56,6 +56,7 @@ furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R185–R188 nis
 > R186 @ b5c8c0ba (run 36778332454, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R185 5419/298; čisto osvežitev dokaza — brez produkcijskih sprememb; P1 faza epika #144 ZAKLJUČENA).
 > R187 @ ed8c2e43 (run 36821743289, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa; P2 korak 20 finalize product claims: konkurenčne primerjave iz javne fasade + +1 doc-truth gate test).
 > R188 @ 5315e89e (run 36824838355, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa; P2 korak 21 finalize #141 product presentation/video: NOV docs/PRODUCT-VIDEO-STORYBOARD.md — realna zgodba preslikana na realne module/komponente/rute, priloga A = vseh 76 modulov, VIDEO-TUTORIALS zgodovinski + DEMO markacija, drift-gate +1f/+16).
+> R189 @ c733414d (run 36829054559, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R188 5436/299 z ZERO delta; P2 korak 22 release/support/runbook material: NOV .github/SUPPORT.md + docs/RELEASE-SUPPORT-INDEX.md inventar z register vrzeli (4 rešene R189), ZGODOVINSKI bannerja na PRODUCTION-CHECKLIST/LAUNCH-CHECKLIST, SECURITY.md Supported Versions ≡ package.json, drift-gate +1f/+14).
 
 > Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
 
