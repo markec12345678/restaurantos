@@ -27,22 +27,23 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `81aecc84` — osveženo R203, issue #148 korak 1 @ R202 pushed drevo)
+## 2. CI / repository evidence (HEAD `7dfa731c` — osveženo R204, issue #148 korak 2 @ R203 pushed drevo)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36912047276` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
-| E2E run | `36912047255` — **success** (Playwright: 234 passed / 4 skipped) |
+| CI run | `36920108112` — **success**, 7/7 jobov attempt=1 (Security Audit, Lint & Typecheck, Migration Test (schema drift), Unit Tests, Build (production), Integration Tests (real DB), E2E Security Tests) + Monitor ×2 success |
+| E2E run | `36920108452` — **success** (Playwright: 234 passed / 4 skipped) |
 | run_attempt | CI run 7/7 = attempt 1 (API verified); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 306 fajlov / **5572** testov, 0 skipped — `test:unit` vključuje security suite (110 fajlov / **2127** = podmnožica job-a; R177-d semantika, ne seštevek) |
+| Unit (CI log) | 307 fajlov / **5617** testov, 0 skipped — `test:unit` vključuje security suite (110 fajlov / **2127** = podmnožica job-a; R177-d semantika, ne seštevek) |
 | Integration (CI log) | 24 fajlov / **248** testov, 0 skipped |
-| E2E Security | **96 passed** (job log grep; enak kot R178–R202 runi — od takrat ni novih security specov) |
-| Lokalna reprodukcija | vitest run 5617/5617 (307 fajlov), exit 0, 2× čisto (R203 lokalna vrata: issue #148 korak 1 — NOV src/lib/danes/cockpit-state.ts (state stroj LOADING/READY/EMPTY/ERROR/UNAUTHORIZED + capability matrica + tipizirano ALERT_TARGET_MODULE usmerjanje) + NOV tests/unit/lib/danes-cockpit-state.test.ts (+45 testov: fs-pini requireAuth × 7 route fajlov, pariteta z auth-middleware, alert drift-gate, komponenta fs-pini, i18n ×5); +1f/+45; monotono ≥ R202 5572 — CI run 36912047276 @ 81aecc84 potrdi 5572 ŽE NA PUSHED DREVESU R202 z ZERO delta) |
+| E2E Security | **96 passed** (job log grep; enak kot R178–R203 runi — od takrat ni novih security specov) |
+| Lokalna reprodukcija | vitest run 5636/5636 (308 fajlov), exit 0, 2× čisto (R204 lokalna vrata: issue #148 korak 2 — TIMEZONE kanon: /api/operational-alerts meja = ljubljanaDayBounds(ljubljanaTodayStr(now)) — strežniška polnoč odstranjena; DanesCockpit rezervacijski čas + glava LJ-pinned (ljubljanaDateTimeParts/ljubljanaTodayStr, browser TZ odstranjena) + KPI testidi; NOV tests/unit/lib/timezone-sl.test.ts (+19: CET/CEST/DST×2/letna meja/00–02h rob/UTC→LJ + fs-pini drift-gate) + NOV tests/e2e/danes-cockpit.spec.ts (10 negativnih/pozitivnih E2E: 500×7 → ERROR ≠ EMPTY, 403 → UNAUTHORIZED ≠ EMPTY, izolacija virov, EMPTY/READY kontrol); +1f/+19; monotono ≥ R203 5617 — CI run 36920108112 @ 7dfa731c potrdi 5617 ŽE NA PUSHED DREVESU R203 z ZERO delta) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R203, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
+Skipped/todo sweep (re-verificirano R204, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
-furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R203 niso dodali novih skipov.
+furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R204 niso dodali novih skipov
+(NOVI tests/e2e/danes-cockpit.spec.ts — 10 testov, 0 skipov).
 
 > Zgodovina osvežitev §2: R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
 > 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
@@ -71,6 +72,7 @@ furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R203 nis
 > R201 @ 614f4fb9 (run 36903754488, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R200 5572/306 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po R200 refresh — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R200 → R201).
 > R202 @ 58201114 (run 36908280171, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R201 5572/306 z ZERO delta ŽE NA PUSHED DREVESU; čisto osvežitev dokaza po R201 refresh — brez produkcijskih sprememb, +0f/+0, pini doc-truth/product-status R201 → R202).
 > R203 @ 81aecc84 (run 36912047276, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R202 5572/306 z ZERO delta ŽE NA PUSHED DREVESU; issue #148 korak 1: Danes cockpit state stroj — NOV src/lib/danes/cockpit-state.ts (LOADING/READY/EMPTY/ERROR/UNAUTHORIZED per 7 virov, capability matrica pariteta z auth-middleware, tipizirano ALERT_TARGET_MODULE usmerjanje nad 8 tipi) + predelava DanesCockpit.tsx (per-kartica ERROR stanja z retry, page-state UNAUTHORIZED/ERROR/PARTIAL/READY, capability vrata enabled:false) + NOV tests/unit/lib/danes-cockpit-state.test.ts 45 testov; KNOWN_ISSUES #49 dual-IndexedDB odkritje dokumentirano; lokalna R203 vrata 307f/5617 (2×), IT 24f/248 sveža, verify 30/30, regen 0-diff, skip sweep nespremenjen 15/0).
+> R204 @ 7dfa731c (run 36920108112, 7/7 jobov + Monitor ×2, 234/4, E2E-sec 96 — ista drevesa, CI potrjuje enaka vrata kot lokalna R203 5617/307 z ZERO delta ŽE NA PUSHED DREVESU; issue #148 korak 2: TIMEZONE kanon — /api/operational-alerts 'danes' meja = ljubljanaDayBounds(ljubljanaTodayStr(now)) (prej strežniška polnoč: na UTC stroju preklici 00:00–02:00 LJ padli v prejšnji poslovni dan), DanesCockpit rezervacijski čas = ljubljanaDateTimeParts + glava = ljubljanaTodayStr prek UTC pina (browser TZ odstranjena), KPI testidi; NOV tests/unit/lib/timezone-sl.test.ts 19 testov (§7 gates: CET/CEST, DST prehoda 23h/25h, stiki meja, letna meja, 00:00–02:00 LJ rob, UTC→LJ rezervacija rollover + DST preskok; fs-pini: alerts kanon + negativen getFullYear pin, dashboard kanon, kokpit negativen toLocaleTimeString pin, enoten kanon) + NOV tests/e2e/danes-cockpit.spec.ts 10 browser negativnih/pozitivnih E2E (§16/§15: per-vir 500 → ERROR ≠ EMPTY, 403 → UNAUTHORIZED ≠ EMPTY, izolacija, EMPTY/READY kontrol; serviceWorkers block); lokalna R204 vrata 308f/5636 (2×), IT 24f/248 sveža, verify 30/30, regen 0-diff, skip sweep nespremenjen 15/0).
 
 > Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
 

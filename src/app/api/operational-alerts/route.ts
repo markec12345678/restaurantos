@@ -11,6 +11,7 @@ import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
+import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 
 import { formatEUR } from '@/lib/safe-format'
 export const dynamic = 'force-dynamic'
@@ -38,7 +39,13 @@ export async function GET(req: Request) {
 
     const now = new Date()
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    // #148 §6 (R204): "danes" meja = LJUBLJANSKI poslovni dan (kanon
+    // ljubljanaDayBounds/ljubljanaTodayStr), NE strežniška TZ. Prej:
+    // strežniško-lokalna polnoč (getFullYear/getMonth/getDate konstruktor) —
+    // na UTC strežniku je bila polnoč 01:00/02:00 LJ, preklici med 00:00–02:00
+    // LJ so padli v PREJŠNJI poslovni dan (napačen excessive_cancellations
+    // števec; isti defekt razred kot P2-UX FIX v timezone-sl.ts). DST-varen.
+    const todayStart = ljubljanaDayBounds(ljubljanaTodayStr(now)).start
 
     // ═══════════════════════════════════════════════════════════════
     // 1. ZAKASNELA NAROČILA (firedAt > 15 min ago, še ni ready/served)

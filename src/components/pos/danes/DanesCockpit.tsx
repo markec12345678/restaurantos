@@ -60,6 +60,7 @@ import { usePOSStore } from '@/lib/store/store'
 import { useI18n } from '@/hooks/useI18n'
 import { queryKeys } from '@/lib/query-keys'
 import { authFetch } from '@/components/pos/PinLogin'
+import { ljubljanaDateTimeParts, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { useAuthUser } from '@/components/pos/sidebar/useAuthUser'
 import {
   alertTargetModule,
@@ -146,10 +147,11 @@ const isEmptyAlerts = (d: unknown) => !Array.isArray((d as AlertsResp)?.alerts) 
 const isEmptyReservations = (d: unknown) => !Array.isArray((d as ReservationsResp)?.reservations) || (d as ReservationsResp).reservations.length === 0
 const isEmptyStock = (d: unknown) => !d || Object.keys(d as object).length === 0
 
-function formatClock(iso: string, locale: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleTimeString(locale === 'en' ? 'en-GB' : locale, { hour: '2-digit', minute: '2-digit' })
+/** #148 §6 (R204): čas rezervacije = LJUBLJANSKI poslovni čas (kanon
+ *  ljubljanaDateTimeParts), NE browser TZ. R43 lekcija: UTC dateTime → po
+ *  Ljubljani lahko NASLEDNJI koledarski dan (20:00/21:00 CET/CEST). */
+function formatClock(iso: string): string {
+  return ljubljanaDateTimeParts(iso).time || '—'
 }
 
 export const DanesCockpit = memo(function DanesCockpit() {
@@ -210,8 +212,13 @@ export const DanesCockpit = memo(function DanesCockpit() {
     refetchInterval: 120_000,
   })
 
+  // #148 §6 (R204): glava "Danes" = Ljubljanski koledarski datum (kanon
+  // ljubljanaTodayStr), formatiran kot čisti koledarski datum prek UTC pina
+  // (datum 'YYYY-MM-DD' interpretiran kot UTC polnoč → weekday/datum čist
+  // koledarski, neodvisen od browser in strežniške TZ) — browser TZ NE SME
+  // spremeniti pomena poslovnega dne (issue #148 §6).
   const todayLabel = useMemo(
-    () => new Date().toLocaleDateString(locale === 'en' ? 'en-GB' : locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+    () => new Date(`${ljubljanaTodayStr()}T00:00:00Z`).toLocaleDateString(locale === 'en' ? 'en-GB' : locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }),
     [locale],
   )
 
@@ -320,16 +327,16 @@ export const DanesCockpit = memo(function DanesCockpit() {
         {/* ── ① AKTIVNO STANJE — 9 vprašanj: 1/3/4/5/6 ── */}
         <section aria-label={t('cockpit.overview')}>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <button type="button" className="text-left" onClick={() => setActiveModule('reports')}>
+            <button type="button" className="text-left" data-testid="danes-kpi-revenue" onClick={() => setActiveModule('reports')}>
               <StatsCard title={t('cockpit.soldToday')} value={kpiValue(states.dashboard, ds ? EUR(ds.todayRevenue) : '…')} subtitle={states.dashboard === 'READY' && ds ? `${ds.paidOrderCount} ×` : undefined} icon={TrendingUp} />
             </button>
-            <button type="button" className="text-left" onClick={() => setActiveModule('kitchen')}>
+            <button type="button" className="text-left" data-testid="danes-kpi-orders" onClick={() => setActiveModule('kitchen')}>
               <StatsCard title={t('cockpit.activeOrders')} value={kpiValue(states.kitchen, ks ? String(ks.totalActive) : '…')} subtitle={states.kitchen === 'READY' && ks ? `${ks.pendingOrders} / ${ks.inProgressOrders} / ${ks.readyOrdersCount}` : undefined} icon={ShoppingCart} />
             </button>
-            <button type="button" className="text-left" onClick={() => setActiveModule('kitchen')}>
+            <button type="button" className="text-left" data-testid="danes-kpi-waiting" onClick={() => setActiveModule('kitchen')}>
               <StatsCard title={t('cockpit.kitchenWaiting')} value={kpiValue(states.kitchen, ks ? String(ks.totalItemsPending) : '…')} subtitle={states.kitchen === 'READY' && ks && ks.criticalOrders > 0 ? `${ks.criticalOrders} ${t('cockpit.criticalKitchen')}` : states.kitchen === 'READY' && ks ? `${t('cockpit.avgWait')} ${ks.avgWaitTime} min` : undefined} icon={ChefHat} />
             </button>
-            <button type="button" className="text-left" onClick={() => setActiveModule('tables')}>
+            <button type="button" className="text-left" data-testid="danes-kpi-tables" onClick={() => setActiveModule('tables')}>
               <StatsCard title={t('cockpit.tablesBusy')} value={kpiValue(states.dashboard, ds ? `${ds.activeTables}/${ds.totalTables}` : '…')} icon={Users} />
             </button>
           </div>
@@ -465,7 +472,17 @@ export const DanesCockpit = memo(function DanesCockpit() {
                           <span className="truncate">{r.customerName}</span>
                         </span>
                         <span className="shrink-0 text-xs text-muted-foreground">
-                          {r.dateTime ? formatClock(r.dateTime, locale) : ''} · {r.partySize}
+                          {/* #148 §6 (R204): LJ-pinned čas; če rezervacija NI danes po
+                              LJ (R43 lekcija — UTC dan se lahko prelomi), prikaži tudi
+                              LJ datum, da "prihajajoča" ni zavajajoča. */}
+                          {r.dateTime ? (
+                            <>
+                              {ljubljanaDateTimeParts(r.dateTime).date !== ljubljanaTodayStr() && `${ljubljanaDateTimeParts(r.dateTime).date} `}
+                              {formatClock(r.dateTime)} · {r.partySize}
+                            </>
+                          ) : (
+                            <>— · {r.partySize}</>
+                          )}
                         </span>
                       </li>
                     ))}
