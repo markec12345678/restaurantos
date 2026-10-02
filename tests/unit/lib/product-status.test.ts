@@ -40,10 +40,10 @@ describe('PRODUCT-STATUS.md — verzija brez drifta (#144 §12)', () => {
     expect(status?.['versionSource']).toBe('package.json')
   })
 
-  it('statusUpdatedRound navaja rundi izvora (R207: #151 korak 2 fiskalna veriga @ 95b9de5c; R206: doc-truth E2E korekcija @ 17914bc8)', () => {
+  it('statusUpdatedRound navaja rundi izvora (R208: doc-truth sync @ bc07e4f7; R207: #151 korak 2 fiskalna veriga @ 95b9de5c)', () => {
     const round = String(status?.['statusUpdatedRound'])
+    expect(round).toContain('R208')
     expect(round).toContain('R207')
-    expect(round).toContain('R206')
   })
 })
 
