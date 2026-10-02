@@ -51,7 +51,10 @@ beforeAll(async () => {
   await db.location.deleteMany({ where: { id: IDS.location } }).catch(() => {})
 
   await db.location.create({
-    data: { id: IDS.location, name: `DR Test ${RUN_ID}`, code: RUN_ID.slice(-12), type: 'restaurant' },
+    // R209 fix (#133 vzorec): premisesId je @unique @default("") — prazni default
+    // trči z drugimi lokacijami brez eksplicitnega premisesId (r195 seed vrstica
+    // ostane živa čez datoteke). Ekspliciten RUN_ID pin = deterministična izolacija.
+    data: { id: IDS.location, name: `DR Test ${RUN_ID}`, code: RUN_ID.slice(-12), type: 'restaurant', premisesId: `${RUN_ID}-p` },
   })
   await db.menu.create({ data: { id: IDS.menu, name: `Jedilnik ${RUN_ID}`, locationId: IDS.location } })
   await db.category.create({ data: { id: IDS.category, name: `Pice ${RUN_ID}`, menuId: IDS.menu } })

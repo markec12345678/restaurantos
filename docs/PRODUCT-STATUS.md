@@ -17,8 +17,8 @@
   "versionSource": "package.json",
   "statusDocVersion": 1,
   "statusUpdated": "2026-10-02",
-  "statusUpdatedRound": "R208 (epik #144 + doc-truth sync na R207 pushed drevo bc07e4f7): ZERO-delta osvežitev dokaza — CI run 37003511043 (7/7 jobov success attempt=1 + Monitor ×2 37004273943/37003977106) + E2E run 37003510985 (249 passed / 4 skipped) potrjujeta R207 drevo ŽE NA PUSHED DREVESU: napoved iz R207 dokaza ('+5 §28 E2E lokalno 5/5, full-suite pričakovano 249/4 ob pushu, potrditev v DOPOLNITVI') točna do številke (nasprotje R206 defektu 234→244 — številke izpeljane iz lastnih run logov, ne skopane iz prejšnje zabeležke: Unit job fajl L1021-1022 + step fajl L711-712 = 309f/5660, Integration L750-751 + L331 = 26f/268, E2E-sec L1292 = 96, E2E L1080-1081 = 249/4). Korekcija: README tests badge 244→249 E2E + full-suite (249 testov / 19 specov — r151-settlement-recovery.spec.ts @ R207 = 19. spec) + audit badge razvoj-208 + napredek segment R208 + evidence vrstica → CI @ HEAD bc07e4f7; PRODUCT-STATUS: headCommitAtStatus → bc07e4f7, e2ePlaywright 249/4, ciLastFileBasedProof → R207 pushed drevo; PRODUCTION-VALIDATION §2 osveženo R208 + zgodovina + sweep re-verificirano R208; pini: doc-truth.test (§2 glava 'osveženo R208', negativni R207/R206/R205) + product-status.test (R208+R207). Brez produkcijskih sprememb — doc-only + 2 pin testna fajla. Gates: tsc 0 · lint 0 · unit 309f/5660/0 (2× čist) · security podmnožica 110f/2127 · IT 26f/268/0 (sveža PGlite, en tek) · verify 30/30 · regen 0-diff · skip sweep 15 e2e / 0 unit+IT (nespremenjeno). Epik #144 VAL 1: naslednja funkcionalna runda #152 po prioriteti; ostajata #36 + #49 (fix = #157).",
-  "headCommitAtStatus": "bc07e4f7",
+  "statusUpdatedRound": "R209 (epik #144 + issue #152 korak 1 — zalogovno-poslovna veriga PROCUREMENT → STOCK → RECIPE → CONSUMPTION → WASTE/STOCKTAKE → COGS → REPORT na pushed drevesu 7d42d856): NOV tests/integration/r209-inventory-chain-drill.test.ts (15 testov, realni PGlite, pravi route handlerji orders/checks/payments/inventory-restock/waste/waste-reverse/stocktakes create-patch-submit-approve/purchase-orders-receive/reports-eod — requireAuth mockan na meji, vzorec r128/r132/r151/r207): VERIGA B prevzem z serijami (restock 2× lot+expiry → 2 InventoryBatch + procurement StockTx 36.00+189.00, sledljivost dobavitelja na seriji) · VERIGA A prodaja (naročilo 20 × pica, usable 0.25 kg/servis @ yield 50 %) → RAW odvod 10 kg, StockTx sale quantity −10/totalCost 45.00 (spot snapshot costPerUnit ob odvodu, inventoryDeducted CAS claim) + §22-H FEFO determinizem (LOT-B poteče prej → −8 → EXHAUSTED, LOT-A −2) · §5 EXACT-ONCE naročilo (replay idempotencyKey → 200 ISTI order, EN sale tx, zaloga nespremenjena — fast-path pred deduction) · VERIGA I razprodano (naročilo čez zalogo → 409 + soldOutItems, NI orderja NI odvoda — R124 fail-closed; allowOutOfStock → order obstane, pogojni decrement FAILA → attempt vrstica qty 0/totalCost 0, zaloga NE gre negativno) · VERIGA A plačilo (check + cash → paid, Σ==total na cent) · VERIGA B PO prevzem (receive → zaloga 10→15, procurement 60.00, GRN + linija, SupplierPriceHistory goods_receipt, PO → received; duplicate receive → 400 že popolnoma prejeto, EN efekt) · VERIGA D odpad (write-off 6.00 + WasteRecord snapshot + audit; replay idempotencyKey → ISTA vrstica replay:true, EN efekt; reverse → kompenzacijski return s snapshot ceno; double reverse → 409) · VERIGA E inventura (snapshot → count 38 → submit → approve → CAS absolutna nastavitev + write-off 9.00 + FEFO + line link; double approve → 409) · §19 REKONCILIACIJA reports/eod (costs.cogs 45.00 == Σ|totalCost| sale, procurementCost 285.00 = restock 225 + PO 60, writeOffCost 15.00 = odpad 6 + inventura 9, revenue 487.76 == plačani order — prihodkovna in stroškovna stran istega poslovnega dne na istem porečju) · §21 LEDGER KONTINUITETA (multiset(previousQty) == multiset(newQty) ∪ {0} ∖ {38} — veriga 0→8→50→40→38 brez vrzelj, odporna na enako-milisekundne zapise). NOV docs/INVENTORY-CHAIN.md — #152 §3 source-of-truth matrica 13 poslovnih dejstev (kanonski vir/pisci/bralci/enote/tx/audit/testi/vrzel, vse z file:line sidri) + §4 inventar VSEH 21 zalogovnih piscev v 3 skupinah (9 kanonskih R106/R182, 7 prodajnih, 5 nejedrnih) + §4 živi verižni dokazi + §5 register 10 znanih vrzel (G1 menu-stock read ni location-scoped, G2 business-day bucketiranje paidAt vs createdAt, G3 QR/online/delivery tokovi brez ključavnic, G4 batch-PUT adjust izjema, G5 DELETE brez audita, G6 reorder create-order, G7 receive brez klientega idempotencyKey, G8 SupplierPriceHistory opt-in samo — BY DESIGN, G9 batch unitCost ne-uporabljen, G10 brez expiry write-off joba) + §6 izrecno NE-implementirano (fizična validacija, valorizacijske metode, kreditne note, živi podrecepti — anti-overclaim) + §7 pokritost testov. Ni produkcijskih sprememb — 1 NOV IT drill + 1 NOV doc + 2 pin testna fajla (doc-truth: §2 osveženo R209, negativni R208/R207/R206; product-status: R209+R208). Gates: tsc 0 · lint 0 · unit 309f/5660 (2× čist) · security 110f/2127 · IT 27f/283 (sveža PGlite, drill 15/15 v 1.2 s) · verify 30/30 · regen chain/inventory/matrix/closure 0-diff · skip sweep 15 e2e / 0 unit+IT. R208 run 37009517474 @ 7d42d856 je bil že CI-verificiran (7/7 + E2E 37009517286 249/4 + Monitor ×2, vse attempt=1 — re-enumerirano ob R209). Lekcija: waste replay veja vrača 200 (ne 201), StockTx.supplierDoc nosi PO številko (dobavnica živi v GRN) — številke vedno iz merjenja, ne iz prevzetega branja route. Epik #144 VAL 1: #152 korak 1 ZAKLJUČENA (matrica + pisec inventar + žive verige + rekonciliacija); naslednja runda #152 korak 2 po prioriteti vrzel (G1/G2/G4/G7 kandidati); ostajata #36 + #49 (fix = #157).",
+  "headCommitAtStatus": "7d42d8569cfc58ed1ab31e64f7b6b2732f00a869",
   "stack": {
     "framework": "Next.js 16 App Router",
     "language": "TypeScript 5 (strict)",
@@ -29,7 +29,17 @@
   "productShape": {
     "navigationModules": 76,
     "navigationModulesSource": "src/lib/i18n/navigation/*.ts (nav.* ključi, 5 jezikov sl/en/it/hr/de)",
-    "workModes": ["POS", "waiter", "kds", "kiosk", "qr", "qr-menu", "driver", "online-ordering", "reservations"],
+    "workModes": [
+      "POS",
+      "waiter",
+      "kds",
+      "kiosk",
+      "qr",
+      "qr-menu",
+      "driver",
+      "online-ordering",
+      "reservations"
+    ],
     "moduleRegistry": "src/app/components/module-registry.tsx (lazy-loaded component map)",
     "moduleRegistrySourceOfTruth": "src/lib/modules/registry.ts (76 modulov × §6 metadata: group/domain/access/priority/relatedModules/mobile/groupOrder/highlight — epic #144 P0 korak 3 R173 + IA runda R174 + R175 danes kokpit)",
     "moduleRegistryDriftGate": "tests/unit/lib/module-registry.test.ts (52 testov: register ≡ navItems ≡ moduleComponents ≡ i18n ×5 jezikov; canAccessModule pariteta 8 uporabniških likov × 76 modulov; R174: navItems/navGroups derivirana iz registerja, intra-group red element-wise, mobile/highlight sodbe, nav.group.* ×5; R175: danes kokpit pini — registry vrstica, analytics groupOrder 0, landing page.tsx logika, kompozicija 7 endpointov, prefetch + mrtvi /api/orders/stats odstranjen; R176: workspaces — 4 WORKSPACES path/landing pini, ROLE_TO_WORKSPACE ≡ prisma EmployeeRole enum dvosmerno, resolveWorkspaceForUser pariteta + fallback, landing po 8 likih, page.tsx + paleta fs-pini, workspace.* i18n ×5)",
@@ -42,14 +52,26 @@
   },
   "testEvidence": {
     "evidenceSource": "docs/PRODUCTION-VALIDATION.md §2 (CI-log-izpeljano, file-based)",
-    "unit": { "files": 309, "tests": 5660 },
-    "unitSecuritySuite": { "files": 110, "tests": 2127 },
+    "unit": {
+      "files": 309,
+      "tests": 5660
+    },
+    "unitSecuritySuite": {
+      "files": 110,
+      "tests": 2127
+    },
     "unitTotalWithSecurity": 5660,
-    "integration": { "files": 26, "tests": 268 },
-    "e2ePlaywright": { "passed": 249, "skipped": 4 },
+    "integration": {
+      "files": 27,
+      "tests": 283
+    },
+    "e2ePlaywright": {
+      "passed": 249,
+      "skipped": 4
+    },
     "e2eSecurity": 96,
-    "ciVerification": "lokalna vrata ×2 (R172) = vir unit/integration števil; CI run za trenutni HEAD potrdi enaka vrata ob pushu (vitest štetje je deterministično na istem drevesu); e2ePlaywright = zadnji CI-verificiran run (R207 push, 249/4) — napoved iz R207 dokaza ('249/4 pričakovano') potrjena točno do številke ob R208",
-    "ciLastFileBasedProof": "HEAD bc07e4f7 (R207) — CI run 37003511043: 7/7 jobov success attempt=1 (Lint&Typecheck 110826354277, Security Audit 110826354129, Integration 110827143590, Build 110827143662, Unit 110827143675, Migration 110827143763, E2E-sec 110827878278 — neodvisno enumeriral GitHub API ob R208) + E2E run 37003510985 success attempt=1 (249 passed/4 skipped, log L1080-1081) + Monitor ×2 (37004273943/37003977106); log-izpeljane številke iz run 37003511043/37003510985 (zapisane ob R207 DOPOLNITVI, ZERO delta z lokalnimi vrati): Unit 309f/5660 (job fajl 2_Unit L1021-1022, step fajl L711-712), Integration 26f/268 (job fajl 4_Integration L750-751, step fajl L331), E2E 249 passed/4 skipped (L1080-1081), E2E-sec 96 (L1292); §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R208)",
+    "ciVerification": "lokalna vrata ×2 (R172) = vir unit/integration števil; CI run za trenutni HEAD potrdi enaka vrata ob pushu (vitest štetje je deterministično na istem drevesu); e2ePlaywright = zadnji CI-verificiran run (R208 push, 249/4, run 37009517474/37009517286 — ZERO delta ×2 zapored z R207 runom)",
+    "ciLastFileBasedProof": "HEAD 7d42d856 (R208) — CI run 37009517474: 7/7 jobov success attempt=1 (Lint&Typecheck 110845623390, Security Audit 110845623620, Integration 110846368365, Migration 110846368412, Unit 110846368445, Build 110846368457, E2E-sec 110847186024 — neodvisno enumeriral GitHub API ob R209) + E2E run 37009517286 success attempt=1 (249 passed/4 skipped, log L1080-1081) + Monitor ×2 (37010292530/37010034422); log-izpeljane številke iz run 37009517474/37009517286 (ZERO delta z R207 runom in lokalnimi vrati): Unit 309f/5660 (job fajl 1_Unit L1021-1022 + step fajl — poštna opomba: job fajl zaporedje v zipu se spreminja med runi, vedno glob po imenu), security 110f/2127 (L1211-1212), Integration 26f/268 (job fajl 4_Integration L747-748), E2E 249 passed/4 skipped (L1080-1081), E2E-sec 96 (L1292); §2 tabelo dokumentira PRODUCTION-VALIDATION.md (osvežena R209)",
     "verifyFeatures": "30/30 (npx tsx scripts/verify-features.ts)"
   },
   "deployedEnvironment": {

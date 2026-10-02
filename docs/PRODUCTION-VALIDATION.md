@@ -27,25 +27,25 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `bc07e4f7` — osveženo R208, doc-truth sync @ R207 pushed drevo)
+## 2. CI / repository evidence (HEAD `7d42d856` — osveženo R209, dokaz na R208 pushed drevo)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `37003511043` — **success**, 7/7 jobov attempt=1 (Security Audit 110826354129, Lint & Typecheck 110826354277, Migration 110827143763, Unit 110827143675, Build 110827143662, Integration 110827143590, E2E-sec 110827878278 — jobe enumeriral GitHub API ob R208) + Monitor ×2 success (37004273943/37003977106) |
-| E2E run | `37003510985` — **success** attempt=1 — **249 passed / 4 skipped** (log L1080-1081; R207 push na drevesu bc07e4f7 vključno s 5 §28 testi (r151-settlement-recovery.spec.ts); napoved iz R207 dokaza ('full-suite pričakovano 249/4 ob pushu, potrditev v DOPOLNITVI' — §28 spec lokalno 5/5 passed: playwright, dev strežnik + PGlite e2e baza, 11.8 s) potrjena točno do številke ob R208) |
-| run_attempt | CI run 7/7 = attempt 1 (API verified); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 309 fajlov / **5660** testov, 0 skipped — R207 push log (run 37003511043, job fajl 2_Unit L1021-1022 + step fajl L711-712, zapisano ob R207 DOPOLNITVI, ZERO delta z lokalnimi vrati); `test:unit` vključuje security suite (110 fajlov / **2127** = podmnožica job-a; R177-d semantika, ne seštevek) |
-| Integration (CI log) | 26 fajlov / **268** testov, 0 skipped — R207 push log (run 37003511043, job fajl 4_Integration L750-751 + step fajl L331, ZERO delta z lokalnimi vrati) |
-| E2E Security | **96 passed** (job log grep R207 push, L1292 + step L115; enak kot R178–R207 runi — od takrat ni novih security specov) |
-| Lokalna reprodukcija | vitest run 5660/5660 (309 fajlov), exit 0, 2× čisto (R207 lokalna vrata: issue #151 korak 2 — fiskalna veriga: NOV tests/integration/r207-fiscal-chain-drill.test.ts 13 testov na realni PGlite — §26 checkpointi 1–8 (Order → Payment Σ==total → Receipt na cent + §24.10 duplicate → ISTI račun → FURS meja → shift open → close totals==Σpayments + §24.14 retry → EOD → Z finalized + §24.15 retry → EOD odraža znesek); FURS sim meja: brez certifikata → pending, retry z FURS_ALLOW_SIMULATION → SIMULACIJA ostane fiscalVerified=false (fail-closed, §29), duplicate submit → EN efekt; §18 Decimal migracija calculateCheckAmounts + float↔Decimal parity dokaz; NOV docs/FINANCIAL-CHAIN.md §4 §23 failure matrica (15 vrstic); NOV tests/e2e/r151-settlement-recovery.spec.ts 5 §28 browser evidence testov; +0f/+9 unit + +1f/+13 IT; monotono ≥ R206 5651 — CI run 36992310970 @ 95b9de5c potrdi 5651 ŽE NA PUSHED DREVESU R206 z ZERO delta) |
+| CI run | `37009517474` @ 7d42d856 — **success**, 7/7 jobov attempt=1 (Lint & Typecheck 110845623390, Security Audit 110845623620, Integration 110846368365, Migration 110846368412, Unit 110846368445, Build 110846368457, E2E-sec 110847186024 — jobe enumeriral GitHub API ob R209) + Monitor ×2 success (37010292530/37010034422) |
+| E2E run | `37009517286` @ 7d42d856 — **success** attempt=1 — **249 passed / 4 skipped** (log L1080-1081; R208 push; ZERO delta ×2 zapored: R207 run 37003510985 in R208 run dokumentirata ISTA vrata — napoved iz R207 dokaza ('249/4 ob pushu') dvakrat točna do številke) |
+| run_attempt | CI run 7/7 = attempt 1 (API verified ob R209); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
+| Unit (CI log) | 309 fajlov / **5660** testov, 0 skipped — R208 push log (run 37009517474, job fajl 1_Unit L1021-1022 + step fajl; poštna opomba R209: job fajl zaporedje v zipu se spreminja med runi — vedno glob po imenu, ne po številki); `test:unit` vključuje security suite (110 fajlov / **2127** = podmnožica job-a; L1211-1212; R177-d semantika, ne seštevek) |
+| Integration (CI log) | 26 fajlov / **268** testov, 0 skipped — R208 push log (run 37009517474, job fajl 4_Integration L747-748); trenutno drevo (R209) ima LOCALNO 27f/**283** (+1f/+15: r209-inventory-chain-drill — #152 korak 1) — pričakovano ob pushu, potrditev v DOPOLNITVI |
+| E2E Security | **96 passed** (job log grep R208 push, L1292; enak kot R178–R208 runi — od takrat ni novih security specov) |
+| Lokalna reprodukcija | vitest run 5660/5660 (309 fajlov), exit 0, 2× čisto (R209 lokalna vrata: issue #152 korak 1 — zalogovno-poslovna veriga: NOV tests/integration/r209-inventory-chain-drill.test.ts 15 testov na realni PGlite — veriga B prevzem z serijami, veriga A prodaja RAW yield odvod + FEFO determinizem, §5 exact-once naročilo/prevzem/odpad/inventura, veriga I razprodano 409 + attempt vrstica, veriga D odpad + replay + reversala, veriga E inventura, §19 rekonciliacija reports/eod cogs 45.00/procurement 285.00/writeOff 15.00/revenue 487.76, §21 ledger kontinuiteta 0→8→50→40→38; NOV docs/INVENTORY-CHAIN.md — §3 matrica 13 dejstev + §4 inventar 21 piscev + §5 register 10 vrzel + §6 ne-implementirano; +1f/+15 IT, +0 unit; monotono ≥ R208 268 IT — CI run 37009517474 @ 7d42d856 potrjuje 268 ŽE NA PUSHED DREVESU R208 z ZERO delta) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R208, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
+Skipped/todo sweep (re-verificirano R209, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
-furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R207 niso dodali novih skipov
-(R207 IT drill 13 testov 0 skipov, R207 §28 e2e spec 5 testov 0 skipov).
+furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R208 niso dodali novih skipov
+(R209 IT drill 15 testov 0 skipov).
 
-> Zgodovina osvežitev §2: R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
+> Zgodovina osvežitev §2: R209 @ 7d42d856 (run 37009517474, 7/7 jobov + E2E 37009517286 249/4 + Monitor ×2, vse attempt=1 — CI-verifikacija R208 pusha re-enumerirana ob R209; lokalna vrata R209: +1f/+15 IT r209-inventory-chain-drill #152 korak 1, pričakovano 27f/283 ob pushu). R208 @ bc07e4f7 (run 37003511043, 7/7 jobov + E2E 37003510985 249/4 + Monitor ×2 — doc-truth sync na R207 drevo, ZERO delta, napoved '249/4 ob pushu' točna do številke). R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
 > 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
 > 36736765685, 234/4, E2E-sec 96, podmnožična semantika po R177-d), R180 @ 0beb4a7
 > (run 36742954518, 8/8 jobov, 234/4, E2E-sec 96 — ista drevesa +1 doc-truth gate), R181 @

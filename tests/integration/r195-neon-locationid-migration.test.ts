@@ -87,7 +87,10 @@ describe('R195: Neon locationId drift-most — trajna rešitev (migration packag
     const n = await db.location.count()
     if (n === 0) {
       await db.location.create({
-        data: { name: 'R195 Test Lokacija', code: `R195-${Date.now()}` },
+        // R209 fix (#133 vzorec): ekspliciten premisesId pin — ta vrstica ostane
+        // živa čez IT datoteke (seed-if-empty, afterAll je NE briše); prazni
+        // @default("") bi trčil s kasnejšo lokacijo brez premisesId.
+        data: { name: 'R195 Test Lokacija', code: `R195-${Date.now()}`, premisesId: `r195-${Date.now()}-p` },
       })
     }
   })
