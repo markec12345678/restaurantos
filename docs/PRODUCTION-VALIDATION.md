@@ -27,25 +27,25 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `7d42d856` — osveženo R209, dokaz na R208 pushed drevo)
+## 2. CI / repository evidence (HEAD `db63d01a` — osveženo R210, dokaz na R209 pushed drevo)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `37009517474` @ 7d42d856 — **success**, 7/7 jobov attempt=1 (Lint & Typecheck 110845623390, Security Audit 110845623620, Integration 110846368365, Migration 110846368412, Unit 110846368445, Build 110846368457, E2E-sec 110847186024 — jobe enumeriral GitHub API ob R209) + Monitor ×2 success (37010292530/37010034422) |
-| E2E run | `37009517286` @ 7d42d856 — **success** attempt=1 — **249 passed / 4 skipped** (log L1080-1081; R208 push; ZERO delta ×2 zapored: R207 run 37003510985 in R208 run dokumentirata ISTA vrata — napoved iz R207 dokaza ('249/4 ob pushu') dvakrat točna do številke) |
-| run_attempt | CI run 7/7 = attempt 1 (API verified ob R209); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 309 fajlov / **5660** testov, 0 skipped — R208 push log (run 37009517474, job fajl 1_Unit L1021-1022 + step fajl; poštna opomba R209: job fajl zaporedje v zipu se spreminja med runi — vedno glob po imenu, ne po številki); `test:unit` vključuje security suite (110 fajlov / **2127** = podmnožica job-a; L1211-1212; R177-d semantika, ne seštevek) |
-| Integration (CI log) | 26 fajlov / **268** testov, 0 skipped — R208 push log (run 37009517474, job fajl 4_Integration L747-748); trenutno drevo (R209) ima LOCALNO 27f/**283** (+1f/+15: r209-inventory-chain-drill — #152 korak 1) — pričakovano ob pushu, potrditev v DOPOLNITVI |
-| E2E Security | **96 passed** (job log grep R208 push, L1292; enak kot R178–R208 runi — od takrat ni novih security specov) |
-| Lokalna reprodukcija | vitest run 5660/5660 (309 fajlov), exit 0, 2× čisto (R209 lokalna vrata: issue #152 korak 1 — zalogovno-poslovna veriga: NOV tests/integration/r209-inventory-chain-drill.test.ts 15 testov na realni PGlite — veriga B prevzem z serijami, veriga A prodaja RAW yield odvod + FEFO determinizem, §5 exact-once naročilo/prevzem/odpad/inventura, veriga I razprodano 409 + attempt vrstica, veriga D odpad + replay + reversala, veriga E inventura, §19 rekonciliacija reports/eod cogs 45.00/procurement 285.00/writeOff 15.00/revenue 487.76, §21 ledger kontinuiteta 0→8→50→40→38; NOV docs/INVENTORY-CHAIN.md — §3 matrica 13 dejstev + §4 inventar 21 piscev + §5 register 10 vrzel + §6 ne-implementirano; +1f/+15 IT, +0 unit; monotono ≥ R208 268 IT — CI run 37009517474 @ 7d42d856 potrjuje 268 ŽE NA PUSHED DREVESU R208 z ZERO delta) |
+| CI run | `37019328965` @ db63d01a — **success**, 7/7 jobov attempt=1 (Lint & Typecheck 110878037391, Security Audit 110878037070, Integration 110879083417, Migration 110879083378, Build 110879083287, Unit 110879083418, E2E-sec 110880024169 — jobe enumeriral GitHub API ob R210) + Monitor ×2 success (37019940620/37020260790) |
+| E2E run | `37019329356` @ db63d01a — **success** attempt=1 — **249 passed / 4 skipped** (log L1077-1078; R209 push; ZERO delta ×3 zapored: R207, R208 in R209 runi dokumentirajo ISTA vrata — napovedi '249/4 ob pushu' in '27f/283 ob pushu' vsakokrat točne do številke) |
+| run_attempt | CI run 7/7 = attempt 1 (API verified ob R210); E2E run + Monitor ×2 success — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
+| Unit (CI log) | 309 fajlov / **5660** testov, 0 skipped — R209 push log (run 37019328965, job fajl 1_Unit L1021-1022 + step fajl; poštna opomba R209 potrjena ob R210: job fajl zaporedje v zipu se spremenilo — 0_E2E-sec, 1_Unit, 2_Integration pri R209 runu vs 2_Unit, 4_Integration pri R207 runu — vedno glob po imenu, ne po številki); `test:unit` vključuje security suite (110 fajlov / **2127** = podmnožica job-a; L1211-1212; R177-d semantika, ne seštevek) |
+| Integration (CI log) | 27 fajlov / **283** testov, 0 skipped — R209 push log (run 37019328965, job fajl 2_Integration L754-755); R209 napoved ('27f/283 pričakovano ob pushu, potrditev v DOPOLNITVI') točna do številke — potrditev TUKAJ (ZERO delta ×3) |
+| E2E Security | **96 passed** (job log grep R209 push, L1291; enak kot R178–R209 runi — od takrat ni novih security specov) |
+| Lokalna reprodukcija | vitest run 5660/5660 (309 fajlov), exit 0, 2× čisto (R210 lokalna vrata: doc-truth sync — README badge/napredek/evidence + PRODUCT-STATUS ciLastFileBasedProof/ciVerification/headCommitAtStatus → R209 run 37019328965 @ db63d01a + PRODUCTION-VALIDATION §2 tabela na R209 push runih + pini doc-truth.test ('osveženo R210', negativni R209/R208/R207) + product-status.test (R210+R209); brez produkcijskih sprememb; monotono ≥ R209 27f/283 IT — CI run 37019328965 @ db63d01a potrjuje 27f/283 ŽE NA PUSHED DREVESU R209 z ZERO delta) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R209, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
+Skipped/todo sweep (re-verificirano R210, strižen vzorec `\.(skip|todo|only)\(`): 15 zadetkov v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
 furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT; R186–R208 niso dodali novih skipov
 (R209 IT drill 15 testov 0 skipov).
 
-> Zgodovina osvežitev §2: R209 @ 7d42d856 (run 37009517474, 7/7 jobov + E2E 37009517286 249/4 + Monitor ×2, vse attempt=1 — CI-verifikacija R208 pusha re-enumerirana ob R209; lokalna vrata R209: +1f/+15 IT r209-inventory-chain-drill #152 korak 1, pričakovano 27f/283 ob pushu). R208 @ bc07e4f7 (run 37003511043, 7/7 jobov + E2E 37003510985 249/4 + Monitor ×2 — doc-truth sync na R207 drevo, ZERO delta, napoved '249/4 ob pushu' točna do številke). R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
+> Zgodovina osvežitev §2: R210 @ db63d01a (run 37019328965, 7/7 jobov + E2E 37019329356 249/4 + Monitor ×2, vse attempt=1 — CI-verifikacija R209 pusha re-enumerirana ob R210; IT 27f/283 CI-potrjeno — R209 napoved '27f/283 ob pushu' točna do številke, ZERO delta ×3 zapored; doc-only + 2 pin testna fajla). R209 @ 7d42d856 (run 37009517474, 7/7 jobov + E2E 37009517286 249/4 + Monitor ×2, vse attempt=1 — CI-verifikacija R208 pusha re-enumerirana ob R209; lokalna vrata R209: +1f/+15 IT r209-inventory-chain-drill #152 korak 1, pričakovano 27f/283 ob pushu). R208 @ bc07e4f7 (run 37003511043, 7/7 jobov + E2E 37003510985 249/4 + Monitor ×2 — doc-truth sync na R207 drevo, ZERO delta, napoved '249/4 ob pushu' točna do številke). R171 @ bb7d422f (run 36630369663, 226/4, E2E-sec 88,
 > 5231+1949 aditivna semantika — takrat še pravilna), R179 @ 6f38d77c (run
 > 36736765685, 234/4, E2E-sec 96, podmnožična semantika po R177-d), R180 @ 0beb4a7
 > (run 36742954518, 8/8 jobov, 234/4, E2E-sec 96 — ista drevesa +1 doc-truth gate), R181 @
