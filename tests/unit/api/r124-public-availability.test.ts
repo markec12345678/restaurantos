@@ -244,9 +244,11 @@ describe('GET /api/public/availability — uspešna pot', () => {
     expect(Number.isNaN(Date.parse(data.timestamp))).toBe(false)
 
     // scope: computeMenuStockMap dobi id-je VSEH isAvailable artiklov lokacije
+    // (#152 G1, R211: + lokacijski scope na direktni poti — mirror deduct-direct)
     expect(m.computeMenuStockMap).toHaveBeenCalledTimes(1)
     expect(m.computeMenuStockMap).toHaveBeenCalledWith({
       menuItemIds: [MI_TRACKED, MI_UNTRACKED],
+      locationId: LOC_1,
     })
 
     // db kanon: lokacija MORA obstajati in biti aktivna; meniji po lokaciji
@@ -260,7 +262,7 @@ describe('GET /api/public/availability — uspešna pot', () => {
 
     const res = await GET(new Request(url(`?locationId=${LOC_1}`)))
     expect(res.status).toBe(200)
-    expect(m.computeMenuStockMap).toHaveBeenCalledWith({ menuItemIds: [MI_TRACKED] })
+    expect(m.computeMenuStockMap).toHaveBeenCalledWith({ menuItemIds: [MI_TRACKED], locationId: LOC_1 })
   })
 
   it('rate-limit kanon: klican z ("public-availability", ip, PUBLIC_MENU_LIMIT)', async () => {

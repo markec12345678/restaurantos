@@ -33,6 +33,7 @@ interface InvRow {
   minQuantity: number
   servingsPerUnit: number
   menuItemId: string | null
+  locationId?: string | null // #152 G1 (R211): P1-7 @@unique([menuItemId, locationId])
 }
 interface RecipeRow {
   id: string
@@ -51,7 +52,10 @@ function createDb() {
     recipeWhere: [] as unknown[],
   }
 
-  function invMatches(row: InvRow, where?: { menuItemId?: unknown }): boolean {
+  function invMatches(
+    row: InvRow,
+    where?: { menuItemId?: unknown; locationId?: unknown },
+  ): boolean {
     const mw = where?.menuItemId
     if (mw === undefined) return true
     if (mw === null) return row.menuItemId === null
@@ -61,15 +65,26 @@ function createDb() {
       if (w.not === null && row.menuItemId === null) return false
       return true
     }
-    return row.menuItemId === mw
+    if (row.menuItemId !== mw) return false
+    return true
+  }
+
+  // #152 G1 (R211): lokacijski filter — samo direktna pot ga nosi (mirror
+  // deduct-direct); receptna poizvedba ga NIKOLI ne dobi (mirror deduct-recipe).
+  function invMatchesLocation(row: InvRow, where?: { locationId?: unknown }): boolean {
+    const lw = where?.locationId
+    if (lw === undefined) return true
+    return row.locationId === lw
   }
 
   function makeClients() {
     return {
       inventoryItem: {
-        findMany: async (args: { where?: { menuItemId?: unknown } }) => {
+        findMany: async (args: { where?: { menuItemId?: unknown; locationId?: unknown } }) => {
           captured.inventoryWhere.push(args.where ?? {})
-          return inv.filter(i => invMatches(i, args.where)).map(r => ({ ...r }))
+          return inv
+            .filter(i => invMatches(i, args.where) && invMatchesLocation(i, args.where))
+            .map(r => ({ ...r }))
         },
       },
       recipeItem: {
@@ -121,6 +136,7 @@ function addInv(over: Partial<InvRow> & { id: string }) {
     minQuantity: 0,
     servingsPerUnit: 0,
     menuItemId: null,
+    locationId: null,
     ...over,
   })
 }
@@ -286,6 +302,69 @@ describe('computeMenuStockMap — scope menuItemIds', () => {
     addInv({ id: 'inv-a', menuItemId: MI_A, quantity: 5, servingsPerUnit: 2, unit: 'kos', minQuantity: 0 })
     const map = await computeMenuStockMap({ menuItemIds: ['mi-ne-sleden'] })
     expect(map).toEqual({})
+  })
+})
+
+// ============================================
+// #152 G1 (R211): LOCATION SCOPE — direktna pot mirror deduct-direct,
+// receptna pot mirror deduct-recipe (fiksna vez, ne-filtrirana)
+// ============================================
+describe('computeMenuStockMap — locationId scope (#152 G1)', () => {
+  const LOC_A = 'loc-alfa'
+  const LOC_B = 'loc-beta'
+
+  it('locationId filtrira DIREKTNO poizvedbo (where razširjen, samo inventoryItem)', async () => {
+    addInv({ id: 'inv-a', menuItemId: MI_A, quantity: 5, servingsPerUnit: 2, unit: 'kos', minQuantity: 0 })
+    await computeMenuStockMap({ locationId: LOC_A })
+    expect(state.captured.inventoryWhere[0]).toEqual({
+      menuItemId: { not: null },
+      locationId: LOC_A,
+    })
+    // RECEPTNA poizvedba NIKOLI ne nosi lokacije (parity z deduct-recipe)
+    expect(state.captured.recipeWhere[0]).toEqual({})
+  })
+
+  it('istoMenuItem na dveh lokacijah → mapa pokaže SAMO vrstico zahtevane lokacije', async () => {
+    // P1-7: @@unique([menuItemId, locationId]) — ista mačka, različni lokaciji
+    addInv({ id: 'inv-A1', menuItemId: MI_A, quantity: 5, servingsPerUnit: 2, unit: 'kos', locationId: LOC_A })
+    addInv({ id: 'inv-A2', menuItemId: MI_A, quantity: 0, servingsPerUnit: 2, unit: 'kos', locationId: LOC_B })
+
+    // POS na lokaciji A: zaloga 5×2 = 10 porcij — NE lokacije B (0 → out)
+    const mapA = await computeMenuStockMap({ locationId: LOC_A })
+    expect(mapA[MI_A]).toEqual({ status: 'ok', available: 10, unit: 'kos', source: 'direct' })
+
+    // POS na lokaciji B: ista mačka je IZPRODANA (prej last-writer-wins)
+    const mapB = await computeMenuStockMap({ locationId: LOC_B })
+    expect(mapB[MI_A]).toEqual({ status: 'out', available: 0, unit: 'kos', source: 'direct' })
+  })
+
+  it('brez locationId: where NIMA lokacijskega filtra (back-compat super-admin pogled)', async () => {
+    addInv({ id: 'inv-a', menuItemId: MI_A, quantity: 5, servingsPerUnit: 2, unit: 'kos', locationId: LOC_A })
+    addInv({ id: 'inv-a2', menuItemId: MI_A, quantity: 1, servingsPerUnit: 2, unit: 'kos', locationId: LOC_B })
+    const map = await computeMenuStockMap()
+    expect(state.captured.inventoryWhere[0]).toEqual({ menuItemId: { not: null } })
+    // last-writer-wins (obnašanje nespremenjeno brez scope-a — zgodovinska semantika)
+    expect(map[MI_A].available).toBe(2)
+  })
+
+  it('receptna sestavina na TUJI lokaciji ostane vidna (mirror deduct-recipe: fiksna vez RecipeItem → InventoryItem)', async () => {
+    // RecipeItem.inventoryItemId je FIKSEN — odvod požira TO vrstico ne glede
+    // na lokacijo naročila; read mora prikazati TO vrstico (R124 invarianta)
+    addInv({ id: 'inv-global', quantity: 3, unit: 'kg', locationId: null })
+    addRecipe({ menuItemId: MI_B, inventoryItemId: 'inv-global', quantityPerServing: 0.5 })
+    const map = await computeMenuStockMap({ locationId: LOC_A })
+    expect(map[MI_B]).toEqual({ status: 'ok', available: 6, unit: 'kg', source: 'recipe' })
+  })
+
+  it('menuItemIds + locationId skupaj: id-scope AND lokacija na direktni poti', async () => {
+    addInv({ id: 'inv-a', menuItemId: MI_A, quantity: 5, servingsPerUnit: 2, unit: 'kos', locationId: LOC_A })
+    addInv({ id: 'inv-a2', menuItemId: MI_A, quantity: 9, servingsPerUnit: 2, unit: 'kos', locationId: LOC_B })
+    const map = await computeMenuStockMap({ menuItemIds: [MI_A], locationId: LOC_B })
+    expect(state.captured.inventoryWhere[0]).toEqual({
+      menuItemId: { in: [MI_A] },
+      locationId: LOC_B,
+    })
+    expect(map[MI_A].available).toBe(18)
   })
 })
 

@@ -744,9 +744,11 @@ describe('GET /api/public/menu — sold-out propagacija v javni payload', () => 
     expect(free).toMatchObject({ stockStatus: 'ok', stockAvailable: null, stockUnit: null })
 
     // scope: computeMenuStockMap dobi ID-je VSEH javnih artiklov (izključno te)
+    // (#152 G1, R211: + lokacijski scope na direktni poti — mirror deduct-direct)
     expect(m.computeMenuStockMap).toHaveBeenCalledTimes(1)
     expect(m.computeMenuStockMap).toHaveBeenCalledWith({
       menuItemIds: expect.arrayContaining([MI_OUT, MI_LOW, MI_FREE]),
+      locationId: LOC_1,
     })
   })
 

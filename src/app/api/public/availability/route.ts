@@ -76,7 +76,7 @@ export async function GET(req: Request) {
       )
     }
 
-    const stockMap = await computeMenuStockMap({ menuItemIds })
+    const stockMap = await computeMenuStockMap({ menuItemIds, locationId })
 
     // Minimalen javni payload — brez unit/source detailjev (ni poslovnih skrivnosti)
     const availability: Record<string, { stockStatus: string; stockAvailable: number | null }> = {}

@@ -171,7 +171,7 @@ export async function GET(req: Request) {
       m.categories.flatMap(c => c.menuItems.map(i => i.id))
     )
     const stockMap: MenuStockMap = kioskItemIds.length > 0
-      ? await computeMenuStockMap({ menuItemIds: kioskItemIds })
+      ? await computeMenuStockMap({ menuItemIds: kioskItemIds, locationId: kioskLocationId }) // #152 G1 (R211)
       : {}
     const menuWithStock = menu.map(m => ({
       ...m,
@@ -286,7 +286,7 @@ export async function POST(req: Request) {
     // mehanizem). Isti R124 stock map kot GET/POS → 'out' artikel = 400
     // (brez transakcije, zero pisnih klicev). 'low' je dovoljen (isti kanon
     // kot POS — opozorilo, ne zapora).
-    const orderedStockMap: MenuStockMap = await computeMenuStockMap({ menuItemIds })
+    const orderedStockMap: MenuStockMap = await computeMenuStockMap({ menuItemIds, locationId: kioskLocationId }) // #152 G1 (R211)
     const soldOutItems = menuItems
       .filter(mi => orderedStockMap[mi.id]?.status === 'out')
       .map(mi => ({ menuItemId: mi.id, name: mi.name }))

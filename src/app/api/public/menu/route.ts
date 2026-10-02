@@ -159,7 +159,7 @@ export async function GET(req: Request) {
       m.categories.flatMap(c => c.menuItems.map(i => i.id))
     )
     const stockMap: MenuStockMap = menuItemIds.length > 0
-      ? await computeMenuStockMap({ menuItemIds })
+      ? await computeMenuStockMap({ menuItemIds, locationId }) // #152 G1 (R211)
       : {}
 
     const menusWithStock = menus.map(m => ({

@@ -23,7 +23,12 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: ['take_orders', 'manage_inventory'] })
     if (authResult.error) return authResult.error
 
-    const stockMap = await computeMenuStockMap()
+    // #152 G1 (R211): session.locationId zoži direktni 1:1 link na PRAVO
+    // lokacijo (P1-7: @@unique([menuItemId, locationId])) — mirror
+    // deduct-direct.ts. Super-admin brez dodeljene lokacije (null) vidi
+    // celoten tenant (obnašanje nespremenjeno).
+    const locationId = authResult.session?.locationId ?? undefined
+    const stockMap = await computeMenuStockMap({ locationId })
 
     return NextResponse.json(deepToNumbers(stockMap))
   } catch (error: unknown) {

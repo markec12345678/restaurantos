@@ -16,6 +16,12 @@
 //   'low'  = omejena količina (katera sestavina ≤ minQuantity)
 //   'out'  = izprodano (možnih porcij ≤ 0)
 //
+// #152 G1 (R211): locationId scope — direktna pot lokacijsko filtrirana
+// (mirror deduct-direct), receptna pot prikazuje fiksno vezano vrstico
+// (mirror deduct-recipe). Česa scope NE naredi: ne filtrira receptnih
+// sestavin po lokaciji (RecipeItem nima lokacijske dimenzije), ne vključuje
+// globalnih zalog (locationId NULL) v lokacijsko-scoped pogled — PG
+// NULL ≠ NULL, isti filter kot deduct-direct.
 // R123 (P0-05): RAW semantika — možne porcije = floor(quantity / rawPerServing)
 // kjer rawPerServing = quantityPerServing / (yieldPercent / 100).
 //
@@ -46,17 +52,35 @@ export type MenuStockMap = Record<string, MenuStockEntry>
  * @param opts.menuItemIds — opcionalen scope na konkretne artikle (javni
  *   payloadi: QR meni, kiosk). Brez scope-a = vsi artikli s povezavo na
  *   zalogo (POS menu-stock endpoint).
+ * @param opts.locationId — opcionalen LOCATION SCOPE na direktni poti
+ *   (#152 G1, R211): P1-7 kanon — zaloga istega artikla obstaja PO
+ *   LOKACIJAH (@@unique([menuItemId, locationId])), zato POS/QR/kiosk morajo
+ *   pokazati zalogo PRAVE lokacije. Scope MIRRORA pisno stran:
+ *   deduct-direct.ts (findFirst { menuItemId, locationId }) — direktni 1:1
+ *   link se išče po lokaciji naročila/session-a; deduct-recipe.ts pa požira
+ *   TOČNO vrstico, na katero RecipeItem kaže (fiksna vez, brez lokacijske
+ *   dimenzije) — zato receptna pot Ostane NE-filtrirana po lokaciji
+ *   ("prikaži vrstico, ki jo bo odvod požrl" — invarianta R124
+ *   "POS kaže sold-out ⇒ QR ne sprejema" ostane skladna z dejanskim odvodom).
+ *   Brez locationId = obnašanje nespremenjeno (globina za back-compat;
+ *   super-admin brez dodeljene lokacije vidi celoten tenant).
  */
 export async function computeMenuStockMap(opts?: {
   menuItemIds?: string[]
+  locationId?: string
 }): Promise<MenuStockMap> {
   const idScope = opts?.menuItemIds?.length
     ? { menuItemId: { in: opts.menuItemIds } }
     : { menuItemId: { not: null } }
 
+  // #152 G1 (R211): lokacijski scope SAMO na direktni poti (mirror
+  // deduct-direct.ts:41-42 P1-7); receptna vrstica ostaja vezana na
+  // RecipeItem.inventoryItemId (mirror deduct-recipe.ts:45-47).
+  const locationScope = opts?.locationId ? { locationId: opts.locationId } : {}
+
   const [inventoryItems, recipeItems] = await Promise.all([
     db.inventoryItem.findMany({
-      where: idScope,
+      where: { ...idScope, ...locationScope },
       select: {
         id: true,
         name: true,
