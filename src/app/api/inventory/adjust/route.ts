@@ -1,5 +1,5 @@
 // POST /api/inventory/adjust — Razknjižba/Odpis zaloge
-import { db, createAuditLog } from '@/lib/db'
+import { db, createAuditLog, createAuditLogsBatch } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers, toNum, round2, multiply } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
@@ -8,9 +8,18 @@ import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { notInScopeResponse } from '@/lib/tenant-scope'
 import { structuredErrorResponse } from '@/lib/structured-error'
 import { adjustInventoryItemStock } from '../_helpers/stock-mutations'
+import { acquireInvStockLocks } from '@/lib/stock-deduction/locks'
+import { recordBatchConsumption } from '@/lib/stock-deduction/batch-allocation'
 import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
+
+// R214 (#152 korak 2, G4): pariteta s POST kanonom (stock-mutations TX_OPTS) —
+// Serializable + 10 s timeout za batch tx (enoten vesolj z vsemi zalogovnimi pisci).
+const TX_OPTS = {
+  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+  timeout: 10_000,
+} as const
 
 // FIX R81-F (LEAK-HIGH): inline role-aware fail-closed gate (zrcali
 // resolveCatalogScope semantiko; subscription platformAdminGate stil —
@@ -121,9 +130,20 @@ export async function POST(req: Request) {
   }
 }
 // PUT — batch razknjižba (V ENI TRANSAKCIJI)
-// R106: batch pot OSTANE na P3 atomarnem vzorcu (updateMany gte per item) —
-// negativna zaloga nemogoča že od fixa P3; kanon z advisory lockom je obvezen
-// za enojne pisalne poti (POST/PUT/PATCH/restock), batch ostaja per-item CAS.
+// R214 (#152 korak 2, G4): kanon pariteta — batch pot dobi tri manjkajoče
+// dimenzije kanona; P3 atomarni vzorec (updateMany gte per item) OSTANE ključni
+// CAS (negativna zaloga nemogoča že od fixa P3, skipped-semantika nespremenjena):
+//   1. advisory ključavnice acquireInvStockLocks (R182 vesolj — sort+dedup+null-skip)
+//      PRED prvo mutacijo (receive-kanon vzorec: vse ključavnice → mutacije =
+//      deadlock-free konsistenten ordering čez vse zalogovne pisci)
+//   2. Serializable tx (TX_OPTS pariteta s POST kanonom)
+//   3. FEFO batch razknjižba recordBatchConsumption per uspešen odpis
+//      (sale-safety: napaka alokacije ne podre odpisa — R120 kanon, pariteta
+//      s stock-mutations :195-201)
+//   4. AuditLog INVENTORY_ADJUST per uspešen odpis (createAuditLogsBatch —
+//      tx-fresh vrednosti, isti details shape kot POST, PCI hash veriga)
+//   5. tx-fresh re-read scoped (prej findUnique po raw id)
+//   6. P2002/P2034 → 409 error kontrakt (pariteta s POST catch)
 export async function PUT(req: Request) {
   try {
     const bodyResult = await parseJsonBody(req)
@@ -138,8 +158,13 @@ export async function PUT(req: Request) {
     // FIX H-01: Validiraj vnos z Zod
     const { data, error: validationError } = validateBody(batchAdjustSchema, bodyResult.data)
     if (validationError) return validationError
-    // FIX: Batch operacije v ENI transakciji
+    // FIX: Batch operacije v ENI transakciji (R214 G4: Serializable — pariteta s kanonom)
     const results = await db.$transaction(async (tx) => {
+      // R214 (G4): advisory ključavnice za VSE artikle v batchu — PRED prvo
+      // mutacijo (receive-kanon vzorec _helpers.ts:203-208; sort+dedup+null-skip
+      // v helperju = deadlock-free ordering, enoten vesolj z R182 pisci).
+      await acquireInvStockLocks(tx, data.items.map((entry) => entry.inventoryItemId))
+
       const processed: { updated: Record<string, unknown>; transaction: Record<string, unknown> }[] = []
       const skipped: { inventoryItemId: string; reason: string }[] = []
       for (const entry of data.items) {
@@ -205,9 +230,13 @@ export async function PUT(req: Request) {
           continue
         }
 
-        // Uspešno odbito — preberemo novo stanje
-        const updated = await tx.inventoryItem.findUnique({
-          where: { id: entry.inventoryItemId },
+        // Uspešno odbito — preberemo novo stanje (R214 G4: scoped re-read —
+        // pariteta s kanonovim tx-fresh scoped re-readom; prej findUnique po raw id)
+        const updated = await tx.inventoryItem.findFirst({
+          where: {
+            id: entry.inventoryItemId,
+            ...(sessionLocId ? { locationId: sessionLocId } : {}),
+          },
           include: { menuItem: true },
         })
         const newQty = toNum(updated?.quantity ?? 0)
@@ -230,12 +259,58 @@ export async function PUT(req: Request) {
             employeeId: authResult.session?.employeeId ?? null,
           },
         })
+
+        // R214 (G4): FEFO batch razknjižba — ISTA količina razporejena po
+        // serijah (sale-safety wrapper: napaka alokacije ne podre odpisa;
+        // pariteta s stock-mutations :195-201).
+        if (transaction.id && deductQty > 0) {
+          await recordBatchConsumption(tx, {
+            inventoryItemId: entry.inventoryItemId,
+            quantity: deductQty,
+            stockTransactionId: transaction.id,
+          })
+        }
         processed.push({ updated: updated as Record<string, unknown>, transaction: transaction as unknown as Record<string, unknown> })
       }
       return { processed, skipped }
-    })
+    }, TX_OPTS)
+
+    // R214 (G4): revizija batch razknjižbe — EN vnos per uspešno odpisan
+    // artikel (isti details shape kot POST :92-105, tx-fresh vrednosti;
+    // skipped artikli se NE revidirajo kot odpis — poskus je viden v StockTx
+    // POSKUS vrstici; never-throws, PCI hash veriga prek createAuditLogsBatch).
+    if (results.processed.length > 0) {
+      await createAuditLogsBatch(
+        results.processed.map(({ updated, transaction }) => ({
+          userId: authResult.session?.employeeId,
+          action: 'INVENTORY_ADJUST',
+          entityType: 'InventoryItem',
+          entityId: String((transaction as { inventoryItemId?: string }).inventoryItemId ?? ''),
+          details: {
+            type: data.type,
+            quantity: (transaction as { quantity?: number }).quantity ?? 0,
+            previousQty: (transaction as { previousQty?: number }).previousQty ?? 0,
+            newQty: (transaction as { newQty?: number }).newQty ?? 0,
+            reason: (transaction as { reason?: string }).reason ?? '',
+            itemName: (updated as { name?: string }).name,
+          },
+        }))
+      )
+    }
+
     return NextResponse.json({ processed: results.processed.length, results: results.processed, skipped: results.skipped })
   } catch (error: unknown) {
+    // R214 (G4): error kontrakt pariteta s POST — P2002/P2034 race-pathi → 409
+    // (nikoli 500; Serializable tx dvigne P2034 pri sočasnem dostopu).
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Batch razknjižba je v obdelavi (sočasen dostop) — poskusite znova' },
+        { status: 409 }
+      )
+    }
     return handleApiError(error, 'PUT /api/inventory/adjust', 'Napaka pri batch razknjižbi')
   }
 }

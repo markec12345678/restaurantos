@@ -6,6 +6,16 @@
 // ============================================
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// R214 (G4): FEFO razknjižba per uspešen odpis — mock (realna bi dotikala
+// stockBatchAllocation modelov, ki jih ta P3-era mockTx nima)
+const m = vi.hoisted(() => ({
+  recordBatchConsumption: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/lib/stock-deduction/batch-allocation', () => ({
+  recordBatchConsumption: (...args: unknown[]) => m.recordBatchConsumption(...args),
+}))
+
 // Mock @prisma/client z Decimal support
 vi.mock('@prisma/client', () => {
   class MockDecimal {
@@ -49,6 +59,8 @@ vi.mock('@prisma/client', () => {
 
 // Mock db
 const mockTx = {
+  // R214 (G4): acquireInvStockLocks kliče tx.$executeRaw (advisory lock)
+  $executeRaw: vi.fn().mockResolvedValue(1),
   inventoryItem: {
     findUnique: vi.fn(),
     findFirst: vi.fn(),
@@ -63,9 +75,10 @@ const mockTx = {
 
 vi.mock('@/lib/db', () => ({
   db: {
-    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockTx)),
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>, _opts?: unknown) => fn(mockTx)),
   },
   createAuditLog: vi.fn().mockResolvedValue(undefined),
+  createAuditLogsBatch: vi.fn().mockResolvedValue(undefined),
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
@@ -113,17 +126,18 @@ describe('P3 fix: inventory/adjust — atomic negative stock prevention', () => 
 
   it('uporabi atomic updateMany z WHERE quantity >= deductQty (zadostna zaloga)', async () => {
     // R81-F: fetch je zdaj scoped findFirst (tenant scope), re-read po update
-    // je še vedno findUnique znotraj transakcije (po uspešnem scope checku).
+    // je prav tako scoped findFirst (R214 G4 — pariteta s kanonovim tx-fresh
+    // scoped re-readom; prej findUnique po raw id).
     mockTx.inventoryItem.findFirst.mockReset()
-    mockTx.inventoryItem.findUnique.mockReset()
     mockTx.inventoryItem.updateMany.mockReset()
     mockTx.inventoryItem.updateMany.mockResolvedValue({ count: 1 }) // uspeh
-    mockTx.inventoryItem.findFirst.mockResolvedValueOnce({
-      id: 'inv-1', name: 'Moka', quantity: 10, costPerUnit: 2,
-    })
-    mockTx.inventoryItem.findUnique.mockResolvedValueOnce({
-      id: 'inv-1', name: 'Moka', quantity: 7, costPerUnit: 2, menuItem: null,
-    })
+    mockTx.inventoryItem.findFirst
+      .mockResolvedValueOnce({
+        id: 'inv-1', name: 'Moka', quantity: 10, costPerUnit: 2,
+      }) // scoped lookup
+      .mockResolvedValueOnce({
+        id: 'inv-1', name: 'Moka', quantity: 7, costPerUnit: 2, menuItem: null,
+      }) // tx-fresh re-read
 
     const req = new Request('http://localhost/api/inventory/adjust', { method: 'PUT' })
     const res = await PUT(req)
@@ -150,7 +164,6 @@ describe('P3 fix: inventory/adjust — atomic negative stock prevention', () => 
   it('nezadostna zaloga: NE gre v negativo, zabeleži v skipped', async () => {
     // R81-F: samo fetch (scoped findFirst) — updateMany count=0 → re-read NI klican
     mockTx.inventoryItem.findFirst.mockReset()
-    mockTx.inventoryItem.findUnique.mockReset()
     mockTx.inventoryItem.updateMany.mockReset()
     mockTx.inventoryItem.findFirst.mockResolvedValueOnce({ id: 'inv-1', name: 'Moka', quantity: 2, costPerUnit: 2 })
 

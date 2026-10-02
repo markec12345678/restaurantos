@@ -123,6 +123,7 @@ import { PATCH as stocktakePatch } from '@/app/api/stocktakes/[id]/route'
 import { POST as stocktakeSubmitPost } from '@/app/api/stocktakes/[id]/submit/route'
 import { POST as stocktakeApprovePost } from '@/app/api/stocktakes/[id]/approve/route'
 import { POST as poReceive } from '@/app/api/purchase-orders/[id]/receive/route'
+import { PUT as adjustBatchPut } from '@/app/api/inventory/adjust/route'
 import { GET as reportsEodGet } from '@/app/api/reports/eod/route'
 import { ljubljanaTodayStr } from '@/lib/timezone-sl'
 
@@ -142,6 +143,7 @@ const IDS = {
   invJuice: `${RUN_ID}-inv-juice`, // direktna 1:1 povezava (kos)
   invOil: `${RUN_ID}-inv-oil`, // PO prevzem (L)
   invWaste: `${RUN_ID}-inv-waste`, // odpad (kos)
+  invBatch: `${RUN_ID}-inv-batch`, // R214 G4: batch-PUT adjust (FEFO serije)
   po: `${RUN_ID}-po`,
   po2: `${RUN_ID}-po-2`, // R212 G7: idempotency replay (2. PO — 1. je terminalan)
 }
@@ -289,6 +291,50 @@ beforeAll(async () => {
     },
   })
 
+  // R214 G4: batch artikel + 2 seriji (FEFO: LOT-G4-B izteče prej → porabljen prvi)
+  await db.inventoryItem.create({
+    data: {
+      id: IDS.invBatch,
+      name: 'R214 Batch Artikel',
+      unit: 'kos',
+      quantity: 8,
+      minQuantity: 1,
+      costPerUnit: 2.0,
+      servingsPerUnit: 1,
+      locationId: IDS.location,
+    },
+  })
+  const day2G4 = new Date(Date.now() + 2 * 24 * 3600 * 1000)
+  const day30G4 = new Date(Date.now() + 30 * 24 * 3600 * 1000)
+  await db.inventoryBatch.create({
+    data: {
+      inventoryItemId: IDS.invBatch,
+      locationId: IDS.location,
+      lotNumber: 'LOT-G4-B',
+      receivedAt: new Date(Date.now() - 36 * 3600 * 1000),
+      expiryDate: day2G4,
+      quantityInitial: 3,
+      quantityRemaining: 3,
+      unit: 'kos',
+      unitCost: 2.0,
+      status: 'ACTIVE',
+    },
+  })
+  await db.inventoryBatch.create({
+    data: {
+      inventoryItemId: IDS.invBatch,
+      locationId: IDS.location,
+      lotNumber: 'LOT-G4-A',
+      receivedAt: new Date(Date.now() - 72 * 3600 * 1000),
+      expiryDate: day30G4,
+      quantityInitial: 5,
+      quantityRemaining: 5,
+      unit: 'kos',
+      unitCost: 2.0,
+      status: 'ACTIVE',
+    },
+  })
+
   // Recept: pica ← moka, usable 0.25 kg/servis @ yield 50 % (RAW = 0.5 kg/servis)
   await db.recipeItem.create({
     data: {
@@ -364,7 +410,7 @@ beforeAll(async () => {
 afterAll(async () => {
   // Čiščenje po FK redu — ORKENTIRANO na RUN_ID entitete (IT tečejo zaporedno,
   // fileParallelism: false, a delijo isto PGlite bazo — nikoli deleteMany brez scope-a).
-  const itemIds = [IDS.invFlour, IDS.invJuice, IDS.invOil, IDS.invWaste]
+  const itemIds = [IDS.invFlour, IDS.invJuice, IDS.invOil, IDS.invWaste, IDS.invBatch]
 
   await db.auditLog
     .deleteMany({
@@ -1121,5 +1167,130 @@ describe('R212 G7: receive idempotencyKey → replay = ISTI GRN, EN efekt', () =
     const oil = await db.inventoryItem.findUnique({ where: { id: IDS.invOil } })
     expect(Number(oil!.quantity)).toBe(20)
     expect(await db.goodsReceipt.count({ where: { purchaseOrderId: IDS.po2 } })).toBe(2)
+  })
+})
+
+// ============================================
+// R214 G4: batch-PUT adjust — kanon pariteta (ključavnice + Serializable +
+// FEFO razknjižba + audit). P3 CAS/skipped semantika ostaje (unit P3 + r214).
+// ============================================
+describe('R214 G4: batch-PUT adjust — FEFO razknjižba po serijah + INVENTORY_ADJUST audit', () => {
+  it('G4: batch write-off 4 kos → zaloga 4, StockTx −4 (8.00), FEFO: LOT-G4-B 3 + LOT-G4-A 1, audit INVENTORY_ADJUST tx-fresh', async () => {
+    const res = await adjustBatchPut(
+      req('/api/inventory/adjust', 'PUT', {
+        items: [{ inventoryItemId: IDS.invBatch, quantity: 4, reason: 'G4 odpis poškodovanih' }],
+        type: 'write-off',
+        reason: 'G4 odpis poškodovanih',
+        employeeName: IDS.employee,
+      }),
+    )
+    expect(res.status).toBe(200)
+    const body = (await asJson(res)) as {
+      processed: number
+      results: { transaction: { quantity: number; previousQty: number; newQty: number; totalCost: number } }[]
+      skipped: { inventoryItemId: string; reason: string }[]
+    }
+    expect(body.processed).toBe(1)
+    expect(body.skipped).toHaveLength(0)
+    expect(body.results[0].transaction.quantity).toBe(-4)
+    expect(body.results[0].transaction.previousQty).toBe(8)
+    expect(body.results[0].transaction.newQty).toBe(4)
+    expect(body.results[0].transaction.totalCost).toBe(8.0)
+
+    // zaloga 8 → 4
+    const after = await db.inventoryItem.findUnique({ where: { id: IDS.invBatch } })
+    expect(Number(after!.quantity)).toBe(4)
+
+    // FEFO: LOT-G4-B (izteče prej) porabljen v CELOSTI (3), LOT-G4-A 1
+    const lotB = await db.inventoryBatch.findFirst({ where: { inventoryItemId: IDS.invBatch, lotNumber: 'LOT-G4-B' } })
+    const lotA = await db.inventoryBatch.findFirst({ where: { inventoryItemId: IDS.invBatch, lotNumber: 'LOT-G4-A' } })
+    expect(Number(lotB!.quantityRemaining)).toBe(0)
+    expect(lotB!.status).toBe('EXHAUSTED')
+    expect(Number(lotA!.quantityRemaining)).toBe(4)
+
+    // alokacijske vrstice: −3 + −1 (kanon konvencija: odvod = negativen quantity), vezane na ISTI StockTx
+    const stockTx = await db.stockTransaction.findFirst({
+      where: { inventoryItemId: IDS.invBatch, type: 'write-off', quantity: -4 },
+      orderBy: { createdAt: 'desc' },
+    })
+    expect(stockTx).toBeTruthy()
+    const allocations = await db.stockBatchAllocation.findMany({ where: { stockTransactionId: stockTx!.id } })
+    expect(allocations).toHaveLength(2)
+    const byLot = new Map<string, number>()
+    for (const a of allocations) {
+      const batch = await db.inventoryBatch.findUnique({ where: { id: a.batchId } })
+      byLot.set(batch!.lotNumber, Number(a.quantity))
+    }
+    expect(byLot.get('LOT-G4-B')).toBe(-3)
+    expect(byLot.get('LOT-G4-A')).toBe(-1)
+
+    // audit INVENTORY_ADJUST: tx-fresh vrednosti (prej NI bilo audita — G4)
+    const audits = await db.auditLog.findMany({
+      where: { entityId: IDS.invBatch, action: 'INVENTORY_ADJUST' },
+      orderBy: { timestamp: 'desc' },
+    })
+    expect(audits.length).toBeGreaterThanOrEqual(1)
+    const latest = JSON.parse(audits[0].details) as {
+      type: string
+      quantity: number
+      previousQty: number
+      newQty: number
+      itemName: string
+    }
+    expect(latest).toMatchObject({
+      type: 'write-off',
+      quantity: -4,
+      previousQty: 8,
+      newQty: 4,
+      itemName: 'R214 Batch Artikel',
+    })
+  })
+
+  it('G4: mixed batch — uspešen odpis + skip (premalo) → attempt StockTx qty 0, skip BREZ alokacije in BREZ audita', async () => {
+    // invOil ima 20 (veriga B/G7); 999 → skip. invBatch zahteva 2 → ok (4 → 2).
+    const res = await adjustBatchPut(
+      req('/api/inventory/adjust', 'PUT', {
+        items: [
+          { inventoryItemId: IDS.invBatch, quantity: 2, reason: 'G4 partial odpis' },
+          { inventoryItemId: IDS.invOil, quantity: 999, reason: 'G4 premalo' },
+        ],
+        type: 'write-off',
+        reason: 'G4 mixed odpis',
+        employeeName: IDS.employee,
+      }),
+    )
+    expect(res.status).toBe(200)
+    const body = (await asJson(res)) as {
+      processed: number
+      results: { transaction: { inventoryItemId: string; quantity: number; newQty: number } }[]
+      skipped: { inventoryItemId: string; reason: string }[]
+    }
+    expect(body.processed).toBe(1)
+    expect(body.skipped).toHaveLength(1)
+    expect(body.skipped[0].inventoryItemId).toBe(IDS.invOil)
+    expect(body.skipped[0].reason).toContain('Premalo zaloge')
+    expect(body.skipped[0].reason).toContain('na voljo: 20')
+    expect(body.skipped[0].reason).toContain('potrebno: 999')
+    expect(body.results[0].transaction.inventoryItemId).toBe(IDS.invBatch)
+    expect(body.results[0].transaction.newQty).toBe(2)
+
+    // invBatch 4 → 2 (FEFO nadaljuje na LOT-G4-A)
+    const batchAfter = await db.inventoryItem.findUnique({ where: { id: IDS.invBatch } })
+    expect(Number(batchAfter!.quantity)).toBe(2)
+    const lotA2 = await db.inventoryBatch.findFirst({ where: { inventoryItemId: IDS.invBatch, lotNumber: 'LOT-G4-A' } })
+    expect(Number(lotA2!.quantityRemaining)).toBe(2)
+
+    // skip: NE gre v negativo, attempt StockTx quantity 0 (P3 semantika nespremenjena)
+    const oilAttempt = await db.stockTransaction.findFirst({
+      where: { inventoryItemId: IDS.invOil, quantity: 0, reason: { contains: 'POSKUS' } },
+      orderBy: { createdAt: 'desc' },
+    })
+    expect(oilAttempt).toBeTruthy()
+    const oilAfter = await db.inventoryItem.findUnique({ where: { id: IDS.invOil } })
+    expect(Number(oilAfter!.quantity)).toBe(20)
+
+    // skip NI revidiran kot odpis: NI INVENTORY_ADJUST za invOil (poskus viden v StockTx POSKUS vrstici)
+    const oilAudits = await db.auditLog.count({ where: { entityId: IDS.invOil, action: 'INVENTORY_ADJUST' } })
+    expect(oilAudits).toBe(0)
   })
 })
