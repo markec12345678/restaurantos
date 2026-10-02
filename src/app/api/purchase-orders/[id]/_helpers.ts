@@ -69,6 +69,10 @@ export const purchaseOrderUpdateSchema = z.object({
   })).max(100, 'Največ 100 postavk na prevzem').optional(),
   // R132: št. dobavnice dobavitelja (GRN dokumentacija dostave)
   supplierDocNumber: z.string().max(100, 'Številka dobavnice je predolga').default(''),
+  // R212 G7 (epik #144, #152 korak 2): klientov opcijski idempotencyKey
+  // (R116 kanon) — replay ISTEGA prevzema = ISTI GRN, EN efekt. NULL =
+  // legacy vedenje bit-for-bit nespremenjeno.
+  idempotencyKey: z.string().min(1, 'Idempotency ključ ne sme biti prazen').max(100, 'Idempotency ključ je predolg').optional(),
   status: z.enum(['draft', 'submitted', 'approved', 'partial', 'received', 'cancelled']).optional(),
   expectedDate: z.string().max(30, 'Datum je predolg').optional(),
   notes: z.string().max(2000, 'Opombe so predolge').optional(),
@@ -94,6 +98,10 @@ export interface ReceivePurchaseOrderItemsResult {
   // R132 (epic #115 P1-12): prevzemni dokument (GRN) ustvarjen v istem tx —
   // vsak prevzem (tudi legacy delni) je dokumentiran (kanon #3).
   grn: { id: string; grnNumber: string; status: string; supplierDocNumber: string }
+  // R212 G7 (epik #144, #152 korak 2): true = replay ISTEGA prevzema (isti
+  // PO + isti klientov idempotencyKey) — ISTI GRN dokument, EN efekt (brez
+  // sekundarnega prištevanja zaloge, brez dup StockTx/price-history/AP).
+  replay: boolean
 }
 
 /**
@@ -121,8 +129,12 @@ export async function receivePurchaseOrderItems(opts: {
   notes?: string
   // R132: št. dobavnice dobavitelja (GRN dokumentacija dostave)
   supplierDocNumber?: string
+  // R212 G7 (epik #144, #152 korak 2): klientov opcijski idempotencyKey
+  // (R116 kanon — pariteta waste/batch-prep). NULL/izostanek = legacy
+  // vedenje bit-for-bit nespremenjeno.
+  idempotencyKey?: string | null
 }): Promise<ReceivePurchaseOrderItemsResult> {
-  const { poId, sessionLocationId, receivedItems, employeeId, employeeName, notes, supplierDocNumber } = opts
+  const { poId, sessionLocationId, receivedItems, employeeId, employeeName, notes, supplierDocNumber, idempotencyKey } = opts
 
   return await db.$transaction(async (tx) => {
     // R105 PO-1: advisory lock per PO — serializira sočasne prevzeme ISTEGA
@@ -136,6 +148,39 @@ export async function receivePurchaseOrderItems(opts: {
     })
     if (!po) {
       throw { error: 'Naročilo ni najdeno', status: 404 }
+    }
+
+    // R212 G7 (epik #144, #152 korak 2): replay check (R116 kanon) — POD
+    // per-PO advisory lockom (airtight za retry ISTEGA naročila) in PRED
+    // terminalnimi zaščitami: retry po popolnem prevzemu je REPLAY (200 z
+    // ISTIM GRN), ne 400. Scope: (purchaseOrderId, idempotencyKey) +
+    // lokacijski filter na GRN (pariteta PO findFirst zgoraj — GRN.locationId
+    // zrcali po.locationId ob kreaciji). Po hišnem kanonu (waste/batch-prep)
+    // replay NE primerja telesa zahtevka — isti ključ = isti logični event.
+    if (idempotencyKey) {
+      const existingGrn = await tx.goodsReceipt.findFirst({
+        where: {
+          purchaseOrderId: poId,
+          idempotencyKey,
+          ...(sessionLocationId ? { locationId: sessionLocationId } : {}),
+        },
+      })
+      if (existingGrn) {
+        const allReceiv = po.items.every((i) => greaterThanOrEqual(i.quantityReceived, i.quantityOrdered))
+        const anyPart = po.items.some((i) => isPositive(i.quantityReceived) && !greaterThanOrEqual(i.quantityReceived, i.quantityOrdered))
+        return {
+          po: po as unknown as Record<string, unknown>,
+          allReceived: allReceiv,
+          anyPartial: anyPart,
+          grn: {
+            id: existingGrn.id,
+            grnNumber: existingGrn.grnNumber,
+            status: existingGrn.status,
+            supplierDocNumber: existingGrn.supplierDocNumber,
+          },
+          replay: true,
+        }
+      }
     }
 
     // R105 PO-3: terminalna stanja — received (dvojni prevzem) IN cancelled
@@ -370,6 +415,8 @@ export async function receivePurchaseOrderItems(opts: {
         receivedById: employeeId,
         receivedByName: employeeName ?? '',
         locationId: po.locationId ?? null,
+        // R212 G7: ključ se persistira — replay check zgoraj ga išče
+        idempotencyKey: idempotencyKey ?? null,
         items: { create: grnItems },
       },
     })
@@ -441,6 +488,7 @@ export async function receivePurchaseOrderItems(opts: {
         status: grn.status,
         supplierDocNumber: grn.supplierDocNumber,
       },
+      replay: false,
     }
   }, {
     isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -458,7 +506,7 @@ export async function handleReceiveAction(
   sessionLocationId: string | null,
   // R132 (P1-12): GRN dokumentacija — PUT/PATCH entry poda dobavnico iz bodyja
   // (employeeName snapshot je POST-route avtoriteta; tu ostane prazen).
-  opts?: { supplierDocNumber?: string },
+  opts?: { supplierDocNumber?: string; idempotencyKey?: string | null },
 ) {
   try {
     await receivePurchaseOrderItems({
@@ -467,6 +515,8 @@ export async function handleReceiveAction(
       receivedItems,
       employeeId,
       supplierDocNumber: opts?.supplierDocNumber,
+      // R212 G7: klientov idempotencyKey (R116 kanon) — replay = ISTI GRN
+      idempotencyKey: opts?.idempotencyKey ?? null,
     })
     return NextResponse.json({ success: true, message: 'Blago prevzeto in zaloga posodobljena' })
   } catch (error: unknown) {

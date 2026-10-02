@@ -2531,6 +2531,14 @@ model GoodsReceipt {
   // Metadata (pariteta PO.locationId — nabavni grozd je nullable)
   locationId      String?
   location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // R212 G7 (epik #144, #152 korak 2): klientov idempotencyKey (R116 kanon) —
+  // retry/ponovljen prevzem ISTEGA zahtevka = replay ISTEGA GRN dokumenta
+  // (EN efekt: brez sekundarnega prištevanja zaloge, brez dup StockTx /
+  // price-history/AP). Scope ključa je (purchaseOrderId, idempotencyKey):
+  // PO/GRN lokacija je nullable (nabavni grozd) — PG NULL ≠ NULL bi
+  // (locationId, key) pustil luknjo; per-PO advisory lock naredi replay-check
+  // airtight. NULL ključ = legacy vedenje (bit-for-bit nespremenjeno).
+  idempotencyKey  String?
   items           GoodsReceiptItem[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -2539,6 +2547,8 @@ model GoodsReceipt {
   @@index([supplierId])
   @@index([receivedAt])
   @@index([locationId])
+  @@index([idempotencyKey])
+  @@unique([purchaseOrderId, idempotencyKey])
 }
 
 model GoodsReceiptItem {

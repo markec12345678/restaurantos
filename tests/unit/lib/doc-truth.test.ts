@@ -106,12 +106,12 @@ describe('DOC TRUTH gate (R179): PRODUCTION-VALIDATION §2 ≡ ciLastFileBasedPr
     expect(pval).toContain(`${runE2e![1]} passed / ${runE2e![2]} skipped`)
   })
 
-  it('§2 je osvežen s trenutno rundi (ni več "osveženo R210" pri HEAD dokazu)', () => {
+  it('§2 je osvežen s trenutno rundi (ni več "osveženo R211" pri HEAD dokazu)', () => {
     const header = pval.split('## 2.')[1]?.split('## 3.')[0] ?? ''
-    expect(header).toContain('osveženo R211')
+    expect(header).toContain('osveženo R212')
+    expect(header).not.toContain('osveženo R211')
     expect(header).not.toContain('osveženo R210')
     expect(header).not.toContain('osveženo R209')
-    expect(header).not.toContain('osveženo R208')
   })
 })
 

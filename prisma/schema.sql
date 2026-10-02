@@ -1376,6 +1376,7 @@ CREATE TABLE "GoodsReceipt" (
     "receivedByName" TEXT NOT NULL DEFAULT '',
     "receivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "locationId" TEXT,
+    "idempotencyKey" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -3172,6 +3173,12 @@ CREATE INDEX "GoodsReceipt_receivedAt_idx" ON "GoodsReceipt"("receivedAt");
 
 -- CreateIndex
 CREATE INDEX "GoodsReceipt_locationId_idx" ON "GoodsReceipt"("locationId");
+
+-- CreateIndex
+CREATE INDEX "GoodsReceipt_idempotencyKey_idx" ON "GoodsReceipt"("idempotencyKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GoodsReceipt_purchaseOrderId_idempotencyKey_key" ON "GoodsReceipt"("purchaseOrderId", "idempotencyKey");
 
 -- CreateIndex
 CREATE INDEX "GoodsReceiptItem_goodsReceiptId_idx" ON "GoodsReceiptItem"("goodsReceiptId");

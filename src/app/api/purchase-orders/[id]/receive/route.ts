@@ -41,6 +41,11 @@ const receiveSchema = z.object({
   })).min(1, 'Vsaj ena postavka je obvezna').max(100, 'Največ 100 postavk na prevzem'),
   // R132: št. dobavnice dobavitelja (GRN dokumentacija dostave)
   supplierDocNumber: z.string().max(100, 'Številka dobavnice je predolga').default(''),
+  // R212 G7 (epik #144, #152 korak 2): klientov opcijski idempotencyKey
+  // (R116 kanon — pariteta waste/batch-prep) — retry/ponovljen prevzem
+  // ISTEGA zahtevka = replay ISTEGA GRN dokumenta (EN efekt). NULL/izostanek
+  // = legacy vedenje bit-for-bit nespremenjeno.
+  idempotencyKey: z.string().min(1, 'Idempotency ključ ne sme biti prazen').max(100, 'Idempotency ključ je predolg').optional(),
   notes: z.string().max(2000, 'Opombe so predolge').optional(),
 })
 
@@ -80,6 +85,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // Prej: stale po findFirst izven transakcije + status check proti stale
     // podatkom + read-modify-write po itemih + nepogojen AP create.
     // R132 (P1-12): isti tx ustvari tudi GRN dokument + linije (kanon #3).
+    // R212 G7: klientov idempotencyKey (trim → NULL) — replay = ISTI GRN.
     const result = await receivePurchaseOrderItems({
       poId: id,
       sessionLocationId: scope.locationId,
@@ -88,6 +94,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       employeeName,
       supplierDocNumber: body.supplierDocNumber,
       notes: body.notes,
+      idempotencyKey: body.idempotencyKey?.trim() || null,
     })
 
     const poNumber = (result.po as { poNumber?: string }).poNumber
@@ -109,6 +116,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             quantity: ri.quantityReceived,
           })),
           allReceived: result.allReceived,
+          // R212 G7: replay flag v audit detailih (hišni vzorec waste/
+          // batch-prep — retry poskus je revizijsko viden, efekt pa EN)
+          replay: result.replay,
           // R132 (P1-12): GRN dokument (additivno — kanon #3 + #8)
           grnNumber: result.grn.grnNumber,
           supplierDocNumber: result.grn.supplierDocNumber,
@@ -127,13 +137,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     return NextResponse.json({
       success: true,
-      message: result.allReceived
-        ? 'Blago v celoti prevzeto — zaloga posodobljena, obveznost ustvarjena'
-        : 'Blago delno prevzeto — zaloga posodobljena',
+      message: result.replay
+        ? 'Prevzem je že zabeležen — ISTI GRN dokument (replay, brez sekundarnega zalogovnega efekta)'
+        : result.allReceived
+          ? 'Blago v celoti prevzeto — zaloga posodobljena, obveznost ustvarjena'
+          : 'Blago delno prevzeto — zaloga posodobljena',
       purchaseOrder: deepToNumbers(result.po),
       status: (result.po as { status?: string }).status,
       // R132 (P1-12): prevzemni dokument (GRN) — klient prikaže grnNumber
       grn: result.grn,
+      // R212 G7: replay flag (true = ISTI GRN, EN efekt)
+      replay: result.replay,
     }, { status: 200 })
   } catch (error: unknown) {
     // R105: race-pathi nikoli 500 — P2002 (apNumber @unique count+1 števec

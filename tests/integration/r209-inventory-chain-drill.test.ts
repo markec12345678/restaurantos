@@ -31,6 +31,11 @@
 //                            PO → 'received'
 //   §5 EXACT-ONCE (prevzem)— duplicate receive → 400 'že popolnoma prejeto',
 //                            EN efekt (zaloga/GRN/PH nespremenjeni)
+//   R212 G7 (idempot. prevzem) — klientov idempotencyKey (R116 kanon):
+//                            partial receive z ključem → replay ISTEGA ključa
+//                            → 200 ISTI GRN, ZERO nov efekt; replay po
+//                            terminalnem statusu → 200 (ne 400); cap-check +
+//                            legacy no-key pot BIT-FOR-BIT nespremenjena
 //   VERIGA D (odpad)       — POST /api/waste → write-off StockTx 6.00 +
 //                            WasteRecord snapshot + audit WASTE_CREATE;
 //                            replay idempotencyKey → ISTA vrstica (replay:
@@ -138,6 +143,7 @@ const IDS = {
   invOil: `${RUN_ID}-inv-oil`, // PO prevzem (L)
   invWaste: `${RUN_ID}-inv-waste`, // odpad (kos)
   po: `${RUN_ID}-po`,
+  po2: `${RUN_ID}-po-2`, // R212 G7: idempotency replay (2. PO — 1. je terminalan)
 }
 
 const IDEM_ORDER_PIZZA = `${RUN_ID}-order-pizza`
@@ -145,6 +151,9 @@ const IDEM_ORDER_JUICE = `${RUN_ID}-order-juice`
 const IDEM_PAY = `${RUN_ID}-pay-1`
 const IDEM_WASTE = `${RUN_ID}-waste-1`
 const IDEM_STOCKTAKE = `${RUN_ID}-st-1`
+// R212 G7: klientov idempotencyKey na PO prevzemu (R116 kanon)
+const IDEM_RECV_1 = `${RUN_ID}-recv-1`
+const IDEM_RECV_2 = `${RUN_ID}-recv-2`
 
 // ---------- Pričakovani zneski/količine (P1-8 Decimal kanon) ----------
 // Naročilo: 20 × 19.99 = 399.80; DDV 22 % = 87.956 → 87.96; total = 487.76
@@ -319,6 +328,35 @@ beforeAll(async () => {
     },
   })
 
+  // R212 G7: drugi PO za idempotency replay (1. PO je po VERIGA B terminalan
+  // 'received' — replay vrednost se dokazuje na svežem approved naročilu)
+  await db.purchaseOrder.create({
+    data: {
+      id: IDS.po2,
+      poNumber: `ND-${YEAR}-020901`,
+      supplierId: IDS.supplier,
+      status: 'approved',
+      locationId: IDS.location,
+      subtotal: 60,
+      vatAmount: 13.2,
+      totalAmount: 73.2,
+      items: {
+        create: [
+          {
+            id: `${IDS.po2}-i-oil`,
+            inventoryItemId: IDS.invOil,
+            description: 'R212 Oljčno olje (G7)',
+            quantityOrdered: 5,
+            unit: 'L',
+            unitPrice: 12.0,
+            vatRate: 22,
+            totalPrice: 60,
+          },
+        ],
+      },
+    },
+  })
+
   // Privzeta seja: admin lokacije (bypass permission zahtev,.locationId scope aktiven)
   authRef.current = { employeeId: IDS.employee, role: 'admin', locationId: IDS.location, permissions: [] }
 })
@@ -333,7 +371,7 @@ afterAll(async () => {
       where: {
         OR: [
           { locationId: IDS.location },
-          { entityId: { in: [IDS.po, `${IDS.po}-i-oil`, wasteRecordId, stocktakeId] } },
+          { entityId: { in: [IDS.po, IDS.po2, `${IDS.po}-i-oil`, wasteRecordId, stocktakeId] } },
         ],
       },
     })
@@ -345,12 +383,12 @@ afterAll(async () => {
   await db.stockTransaction.deleteMany({ where: { inventoryItemId: { in: itemIds } } }).catch(() => {})
   await db.inventoryBatch.deleteMany({ where: { inventoryItemId: { in: itemIds } } }).catch(() => {})
   await db.supplierPriceHistory.deleteMany({ where: { inventoryItemId: { in: itemIds } } }).catch(() => {})
-  await db.accountsPayableLine.deleteMany({ where: { accountsPayable: { purchaseOrderId: IDS.po } } }).catch(() => {})
-  await db.accountsPayable.deleteMany({ where: { purchaseOrderId: IDS.po } }).catch(() => {})
-  await db.goodsReceiptItem.deleteMany({ where: { goodsReceipt: { purchaseOrderId: IDS.po } } }).catch(() => {})
-  await db.goodsReceipt.deleteMany({ where: { purchaseOrderId: IDS.po } }).catch(() => {})
-  await db.purchaseOrderItem.deleteMany({ where: { purchaseOrderId: IDS.po } }).catch(() => {})
-  await db.purchaseOrder.deleteMany({ where: { id: IDS.po } }).catch(() => {})
+  await db.accountsPayableLine.deleteMany({ where: { accountsPayable: { purchaseOrderId: { in: [IDS.po, IDS.po2] } } } }).catch(() => {})
+  await db.accountsPayable.deleteMany({ where: { purchaseOrderId: { in: [IDS.po, IDS.po2] } } }).catch(() => {})
+  await db.goodsReceiptItem.deleteMany({ where: { goodsReceipt: { purchaseOrderId: { in: [IDS.po, IDS.po2] } } } }).catch(() => {})
+  await db.goodsReceipt.deleteMany({ where: { purchaseOrderId: { in: [IDS.po, IDS.po2] } } }).catch(() => {})
+  await db.purchaseOrderItem.deleteMany({ where: { purchaseOrderId: { in: [IDS.po, IDS.po2] } } }).catch(() => {})
+  await db.purchaseOrder.deleteMany({ where: { id: { in: [IDS.po, IDS.po2] } } }).catch(() => {})
   await db.payment.deleteMany({ where: { idempotencyKey: IDEM_PAY } }).catch(() => {})
   await db.order.deleteMany({ where: { idempotencyKey: { in: [IDEM_ORDER_PIZZA, IDEM_ORDER_JUICE] } } }).catch(() => {})
   await db.menuItem.deleteMany({ where: { id: { in: [IDS.menuItemPizza, IDS.menuItemJuice] } } }).catch(() => {})
@@ -917,5 +955,171 @@ describe('R209 §19: reports/eod — cogs/procurement/writeOff == Σ persisted S
     // §15: cost basis vsake prodaje je SNAPSHOT ob odvodu (ne slednja cena)
     const saleTx = txs.find((t) => t.type === 'sale')!
     expect(Number(saleTx.costPerUnit)).toBe(4.5)
+  })
+})
+
+// ============================================
+// R212 G7 (epik #144, #152 korak 2): PO receive idempotency — R116 kanon
+// ============================================
+// Vrzel G7 (docs/INVENTORY-CHAIN.md §5): prevzem je imel SAMO terminalni
+// status guard + cap-check — dup prevzem z ISTIMI količinami po statusu
+// `partial` (retry omrežja/klienta) je po oblikovanju prištel zalogo DVAKRAT.
+// FIX: klientov opcijski idempotencyKey na GRN (@@unique(purchaseOrderId,
+// idempotencyKey)) — replay check POD per-PO advisory lockom in PRED
+// terminalnimi zaščitami → retry = 200 ISTI GRN, EN efekt.
+// OPOMBA: ta blok teče PO §19/§21 rekonciliaciji (file order) — EOD vrata
+// (procurementCost 285.00) so že potrjena, novi prevzemi jih ne vplivajo.
+describe('R212 G7: receive idempotencyKey → replay = ISTI GRN, EN efekt', () => {
+  it('§5 EXACT-ONCE (G7): partial receive z ključem → 200 GRN + zaloga +2; replay ISTEGA ključa → ISTI GRN, ZERO nov efekt', async () => {
+    // 1. delni prevzem (2 od 5 L) z idempotencyKey
+    const res1 = await poReceive(
+      req(`/api/purchase-orders/${IDS.po2}/receive`, 'POST', {
+        receivedItems: [{ itemId: `${IDS.po2}-i-oil`, quantityReceived: 2 }],
+        supplierDocNumber: 'DOB-R212-A',
+        idempotencyKey: IDEM_RECV_1,
+      }),
+      withParams(IDS.po2),
+    )
+    expect(res1.status).toBe(200)
+    const body1 = await asJson(res1)
+    expect(body1.replay).toBe(false)
+    const grnA = body1.grn as Record<string, unknown>
+    expect(grnA.status).toBe('confirmed')
+
+    // Zaloga 15 → 17, EN nov procurement tx, EN GRN, EN price-history vrstica
+    const oil = await db.inventoryItem.findUnique({ where: { id: IDS.invOil } })
+    expect(Number(oil!.quantity)).toBe(17)
+    expect(await db.stockTransaction.count({ where: { inventoryItemId: IDS.invOil, type: 'procurement' } })).toBe(2)
+    expect(await db.goodsReceipt.count({ where: { purchaseOrderId: IDS.po2 } })).toBe(1)
+    expect(await db.supplierPriceHistory.count({ where: { inventoryItemId: IDS.invOil } })).toBe(2)
+    expect(String(grnA.grnNumber)).toBe(
+      (await db.goodsReceipt.findFirst({ where: { purchaseOrderId: IDS.po2 } }))!.grnNumber,
+    )
+
+    // 2. REPLAY ISTEGA ključa (retry omrežja) → 200 ISTI GRN, ZERO efekt
+    const res2 = await poReceive(
+      req(`/api/purchase-orders/${IDS.po2}/receive`, 'POST', {
+        receivedItems: [{ itemId: `${IDS.po2}-i-oil`, quantityReceived: 2 }],
+        supplierDocNumber: 'DOB-R212-A',
+        idempotencyKey: IDEM_RECV_1,
+      }),
+      withParams(IDS.po2),
+    )
+    expect(res2.status).toBe(200)
+    const body2 = await asJson(res2)
+    expect(body2.replay).toBe(true)
+    expect(String(body2.message)).toContain('replay')
+    expect((body2.grn as Record<string, unknown>).grnNumber).toBe(grnA.grnNumber)
+
+    // §21: NI sekundarnega zalogovnega efekta — vse števce nespremenjene
+    const oilAfter = await db.inventoryItem.findUnique({ where: { id: IDS.invOil } })
+    expect(Number(oilAfter!.quantity)).toBe(17)
+    expect(await db.stockTransaction.count({ where: { inventoryItemId: IDS.invOil, type: 'procurement' } })).toBe(2)
+    expect(await db.goodsReceipt.count({ where: { purchaseOrderId: IDS.po2 } })).toBe(1)
+    expect(await db.supplierPriceHistory.count({ where: { inventoryItemId: IDS.invOil } })).toBe(2)
+
+    // GRN nosi persistiran ključ (replay check ga išče)
+    const grnRow = await db.goodsReceipt.findFirst({ where: { purchaseOrderId: IDS.po2 } })
+    expect(grnRow!.idempotencyKey).toBe(IDEM_RECV_1)
+  })
+
+  it('G7: cap-check ostane pred replay-om za NOV ključ (400 presega, brez GRN)', async () => {
+    // 2 + 4 > 5 → cap-check (neodvisen od ključa — nov ključ NI replay)
+    const res = await poReceive(
+      req(`/api/purchase-orders/${IDS.po2}/receive`, 'POST', {
+        receivedItems: [{ itemId: `${IDS.po2}-i-oil`, quantityReceived: 4 }],
+        idempotencyKey: IDEM_RECV_2,
+      }),
+      withParams(IDS.po2),
+    )
+    expect(res.status).toBe(400)
+    const body = await asJson(res)
+    expect(String(body.error)).toContain('presega naročeno')
+
+    // Fail-closed: NI GRN (neuspel tx ne persistira ključa), zaloga nespremenjena
+    expect(await db.goodsReceipt.count({ where: { purchaseOrderId: IDS.po2 } })).toBe(1)
+    const oil = await db.inventoryItem.findUnique({ where: { id: IDS.invOil } })
+    expect(Number(oil!.quantity)).toBe(17)
+  })
+
+  it('§5 EXACT-ONCE (G7): zaključek z 2. ključem → GRN-2 + AP; replay OBIH ključev po terminalnem statusu → 200 ISTI GRN (ne 400)', async () => {
+    // Zaključek prevzema (3 preostala L) z drugim ključem
+    const resC = await poReceive(
+      req(`/api/purchase-orders/${IDS.po2}/receive`, 'POST', {
+        receivedItems: [{ itemId: `${IDS.po2}-i-oil`, quantityReceived: 3 }],
+        supplierDocNumber: 'DOB-R212-B',
+        idempotencyKey: IDEM_RECV_2,
+      }),
+      withParams(IDS.po2),
+    )
+    expect(resC.status).toBe(200)
+    const bodyC = await asJson(resC)
+    expect(bodyC.replay).toBe(false)
+    const grnB = bodyC.grn as Record<string, unknown>
+    expect(grnB.grnNumber).not.toBe(
+      (await db.goodsReceipt.findFirst({ where: { purchaseOrderId: IDS.po2, idempotencyKey: IDEM_RECV_1 } }))!.grnNumber,
+    )
+
+    // Zaloga 17 → 20, PO received, AP avto-obveznost, 3. procurement tx
+    const oil = await db.inventoryItem.findUnique({ where: { id: IDS.invOil } })
+    expect(Number(oil!.quantity)).toBe(20)
+    expect((await db.purchaseOrder.findUnique({ where: { id: IDS.po2 } }))!.status).toBe('received')
+    expect(await db.accountsPayable.count({ where: { purchaseOrderId: IDS.po2 } })).toBe(1)
+    expect(await db.stockTransaction.count({ where: { inventoryItemId: IDS.invOil, type: 'procurement' } })).toBe(3)
+    expect(await db.supplierPriceHistory.count({ where: { inventoryItemId: IDS.invOil } })).toBe(3)
+
+    // KLJUČNA G7 VREDNOST: retry 1. ključa PO terminalnem statusu → REPLAY
+    // 200 ISTI GRN (prej: 400 'že popolnoma prejeto' — klient brez naznanila)
+    const resR1 = await poReceive(
+      req(`/api/purchase-orders/${IDS.po2}/receive`, 'POST', {
+        receivedItems: [{ itemId: `${IDS.po2}-i-oil`, quantityReceived: 2 }],
+        idempotencyKey: IDEM_RECV_1,
+      }),
+      withParams(IDS.po2),
+    )
+    expect(resR1.status).toBe(200)
+    const bodyR1 = await asJson(resR1)
+    expect(bodyR1.replay).toBe(true)
+    expect((bodyR1.grn as Record<string, unknown>).grnNumber).toBe(
+      (await db.goodsReceipt.findFirst({ where: { purchaseOrderId: IDS.po2, idempotencyKey: IDEM_RECV_1 } }))!.grnNumber,
+    )
+
+    // Replay 2. ključa → ISTI GRN-2
+    const resR2 = await poReceive(
+      req(`/api/purchase-orders/${IDS.po2}/receive`, 'POST', {
+        receivedItems: [{ itemId: `${IDS.po2}-i-oil`, quantityReceived: 3 }],
+        idempotencyKey: IDEM_RECV_2,
+      }),
+      withParams(IDS.po2),
+    )
+    expect(resR2.status).toBe(200)
+    const bodyR2 = await asJson(resR2)
+    expect(bodyR2.replay).toBe(true)
+    expect((bodyR2.grn as Record<string, unknown>).grnNumber).toBe(grnB.grnNumber)
+
+    // EN efekt čez oba replay-a
+    const oilAfter = await db.inventoryItem.findUnique({ where: { id: IDS.invOil } })
+    expect(Number(oilAfter!.quantity)).toBe(20)
+    expect(await db.goodsReceipt.count({ where: { purchaseOrderId: IDS.po2 } })).toBe(2)
+    expect(await db.stockTransaction.count({ where: { inventoryItemId: IDS.invOil, type: 'procurement' } })).toBe(3)
+    expect(await db.accountsPayable.count({ where: { purchaseOrderId: IDS.po2 } })).toBe(1)
+  })
+
+  it('G7: legacy brez ključa BIT-FOR-BIT nespremenjen — duplicate no-key → 400 "že popolnoma prejeto"', async () => {
+    const res = await poReceive(
+      req(`/api/purchase-orders/${IDS.po2}/receive`, 'POST', {
+        receivedItems: [{ itemId: `${IDS.po2}-i-oil`, quantityReceived: 1 }],
+        supplierDocNumber: 'DOB-R212-RETRY-NO-KEY',
+      }),
+      withParams(IDS.po2),
+    )
+    expect(res.status).toBe(400)
+    const body = await asJson(res)
+    expect(String(body.error)).toContain('že popolnoma prejeto')
+
+    // EN efekt tudi brez ključa (terminal guard ostaja edina zavora za no-key)
+    const oil = await db.inventoryItem.findUnique({ where: { id: IDS.invOil } })
+    expect(Number(oil!.quantity)).toBe(20)
+    expect(await db.goodsReceipt.count({ where: { purchaseOrderId: IDS.po2 } })).toBe(2)
   })
 })

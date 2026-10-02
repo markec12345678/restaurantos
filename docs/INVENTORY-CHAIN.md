@@ -1,6 +1,7 @@
 # INVENTORY-CHAIN — Zalogovno-poslovna veriga (repo-truth dokaz)
 
-> Issue #152 (P1 — Inventory, Recipes, Procurement & COGS Integrity), korak 1 @ R209.
+> Issue #152 (P1 — Inventory, Recipes, Procurement & COGS Integrity), korak 1 @ R209;
+> korak 2 @ R211 (G1 menu-stock location scope) + R212 (G7 receive idempotency, R116 kanon).
 >
 > **ONE MATERIAL EVENT → ONE AUTHORITATIVE STOCK EFFECT · ONE RECIPE → ONE
 > AUTHORITATIVE COST MODEL · PROCUREMENT → STOCK → CONSUMPTION → COST → COGS
@@ -48,8 +49,8 @@ izrecno ne-implementirano (§6).
 | Yield / loss | `RecipeItem.yieldPercent` (schema.prisma:1543, Decimal 5,2; RAW = usable ÷ yield/100) | recipes route (0/101 → 400) | `rawFromUsable` (`src/lib/recipes/yield.ts:37-41`) v deduction/availability/returns/food-cost | % | — | — | r123, lib/yield.test, r209 drill (RAW 0.5 kg/servis @ 50 %) | — |
 | Waste | `WasteRecord` (schema.prisma:1343; snapshot quantity/unit/costPerUnit/totalCost + stockTransactionId unique) | `createWasteRecord` (waste-mutations.ts:131), `reverseWasteRecord` (:242) | waste route GET, poročila odpada | artiklova enota | Serializable + advisory lock (:143/:147) | `WASTE_CREATE`/`WASTE_REVERSE` | r119 (W-1..W-6), r209 drill (replay + reversal) | — |
 | Adjustment | StockTx tip `adjustment`/`write-off` (absolutna prilagoditev / odpis) | `adjustInventoryItemStock` (stock-mutations.ts:89), `setInventoryItemQuantity` (:298), stocktake approve (stocktake-mutations.ts:320) | transactions GET, reports | signed diff | Serializable + lock + CAS (stocktake :393) | `INVENTORY_ADJUST`, `STOCKTAKE_APPROVE` | r106, r121, r209 drill (inventura) | batch-PUT adjust (:142 route) izjema brez ključavnice/audita (§5 G4) |
-| Purchase quantity | `PurchaseOrderItem.quantityOrdered` + `GoodsReceiptItem.quantityAccepted/quantityRejected` (schema.prisma:2461/2544) | `receivePurchaseOrderItems` (purchase-orders/[id]/_helpers.ts:105) | PO routes, GRN list, three-way match | PO enota (pack ali base) | Serializable + `hashtext(poId)` lock (:130) + `acquireInvStockLocks` (:158) | `PURCHASE_ORDER_RECEIVED` | r132 IT + unit (PO-1..6, GRN) | receive brez klientega idempotencyKey (terminal-status + cap-check sta edina zavora, §5 G7) |
-| Purchase price | `SupplierPriceHistory` (schema.prisma:2582, Decimal 12,4, append-only) | avtomatsko ob prevzemu (_helpers.ts:280/:335, `unitPrice ≤ 0` skip), ročno price-history POST | recipes `?priceSource=supplier`, reorder enrichment, stats canon | base unit cena | isti tx kot prevzem | `SUPPLIER_PRICE_MANUAL` (ročno) | r130 IT + unit | prisotna samo opt-in (`priceSource=supplier`); privzeti COGS ne bere PH (§5 G8) |
+| Purchase quantity | `PurchaseOrderItem.quantityOrdered` + `GoodsReceiptItem.quantityAccepted/quantityRejected` (schema.prisma:2470/2563) | `receivePurchaseOrderItems` (purchase-orders/[id]/_helpers.ts:113) | PO routes, GRN list, three-way match | PO enota (pack ali base) | Serializable + `hashtext(poId)` lock (:142) + `acquireInvStockLocks` (:203) | `PURCHASE_ORDER_RECEIVED` | r132 IT + unit (PO-1..6, GRN) + r209 G7 IT (replay = ISTI GRN) | — (G7 zaprta R212: klientov idempotencyKey, replay POD lockom PRED terminalnimi zaščitami, §5) |
+| Purchase price | `SupplierPriceHistory` (schema.prisma:2592, Decimal 12,4, append-only) | avtomatsko ob prevzemu (_helpers.ts:325/:380, `unitPrice ≤ 0` skip), ročno price-history POST | recipes `?priceSource=supplier`, reorder enrichment, stats canon | base unit cena | isti tx kot prevzem | `SUPPLIER_PRICE_MANUAL` (ročno) | r130 IT + unit | prisotna samo opt-in (`priceSource=supplier`); privzeti COGS ne bere PH (§5 G8) |
 | Received quantity | `GoodsReceiptItem.quantityAccepted` (+ rejected brez kapacitetnega efekta — R132 amandma :183-188) | receive kanon | GRN list route, invoice match (invoiced > accepted → `variance_qty`) | PO enota | isti Serializable tx | GRN del `PURCHASE_ORDER_RECEIVED` | r132 (9+1 zavrnjeno → zaloga accepted-only) | — |
 | Recipe cost | izračun: `Σ rawFromUsable(qtyPerServing, yield) × InventoryItem.costPerServing` (food-cost route :51-53) | — (izpeljano, ni shranjeno) | food-cost route, Z-report stats (:162-174), recipes route | EUR/servis | — | — | r123, r209 drill | ni menu-item cost polja; cost je vedno živo izpeljan (by design) |
 | COGS | `StockTransaction.totalCost` type=`'sale'` (spot cost ob odvodu) | deduct-recipe (:105), deduct-direct (:103), deduct-added (:77/:154), public/QR/online/delivery poti §3 | dashboard furs-shift-cogs (:49-61), reports/financial (:176-180), reports/eod metrics (:75-76), Z-report | EUR | isti tx kot odvod | StockTx sled | r209 drill (rekonciliacija cogs == Σ sale) | prihodki se bucketirajo na `Order.paidAt`, COGS na `StockTransaction.createdAt` (§5 G2) |
@@ -68,7 +69,7 @@ izrecno ne-implementirano (§6).
 | 2 | `stock-mutations.ts:251` (`restockInventoryItem`) | ročni prevzem (`POST /api/inventory/restock`), tip `procurement` | increment :242; rekalkulacija `costPerServing` :245; batch prek `recordBatchReceipt` :272 | Serializable :226 | :227 | — (StockTx je sled) |
 | 3 | `stock-mutations.ts:346` (`setInventoryItemQuantity`) | absolutna nastavitev (`PUT/PATCH /api/inventory/[id]`) | `diff = new − freshQty`; `adjustment`>0 / `write-off`<0; diff 0 → brez StockTx (:325-334) | Serializable :312 | :313 | — |
 | 4 | `stock-mutations.ts:449` (`createManualStockTransaction`) | ročna transakcija (`POST /api/inventory/transactions`) | signed; pogojni decrement :424 / increment :442; FEFO :468 | Serializable :400 | :401 | — |
-| 5 | `src/app/api/purchase-orders/[id]/_helpers.ts:252/:310` (`receivePurchaseOrderItems`) | prevzem PO (`POST .../receive`, `PUT action='receive'`), tip `procurement` | increment :244/:303 + forenzika iz post-op vrednosti | Serializable :127/:446 | `hashtext(poId)` :130 + `acquireInvStockLocks` :158 | `PURCHASE_ORDER_RECEIVED` (receive/route.ts:98); ustvari GRN :362 + SupplierPriceHistory :280/:335 + avto-AP :413 |
+| 5 | `src/app/api/purchase-orders/[id]/_helpers.ts:297/:355` (`receivePurchaseOrderItems`) | prevzem PO (`POST .../receive`, `PUT action='receive'`), tip `procurement` | increment :289/:348 + forenzika iz post-op vrednosti | Serializable :135/:494 | `hashtext(poId)` :142 + `acquireInvStockLocks` :203 + replay check :156-180 (R212 G7 — R116 ključ kanon) | `PURCHASE_ORDER_RECEIVED` (receive/route.ts:107); ustvari GRN :407 + SupplierPriceHistory :325/:380 + avto-AP :460 |
 | 6 | `src/app/api/waste/_helpers/waste-mutations.ts:192` (`createWasteRecord`) | odpad (`POST /api/waste`), tip `write-off` | pogojni decrement :173 (fail-closed 400 :177); batch explicit-lot fail-closed :75-114 oz. FEFO :117 | Serializable :143 | :147 | `WASTE_CREATE` (waste/route.ts:271) |
 | 7 | `waste-mutations.ts:279` (`reverseWasteRecord`) | reversala odpada, tip `return`, snapshot totalCost | increment :294; batch mirror `restoreBatchesFromAllocations` :303 | Serializable :249 | :265 | `WASTE_REVERSE` |
 | 8 | `src/app/api/stocktakes/_helpers/stocktake-mutations.ts:405` (`approveStocktake`) | potrditev inventure → korekcija | `appliedDiff = counted − tx-fresh qty`; CAS absolutna nastavitev :393; tip `adjustment`/`write-off` :408; FEFO negativ :425 | Serializable :329 | :373 + CAS :393 | `STOCKTAKE_APPROVE`; dvojni approve blokiran s statusnim claimom :350 |
@@ -126,6 +127,13 @@ r128/r132/r151/r207):
   GRN + linija, SupplierPriceHistory (source goods_receipt), PO → received.
 - **§5 EXACT-ONCE (prevzem)**: duplicate receive → 400 „že popolnoma prejeto",
   zaloga/GRN/PH nespremenjeni.
+- **R212 G7 (idempot. prevzem)**: partial receive z idempotencyKey → replay
+  ISTEGA ključa → 200 ISTI GRN (`replay: true`), ZERO nov efekt (zaloga/StockTx/
+  PH/GRN števci nespremenjeni); replay OBIH ključev po terminalnem statusu →
+  200 (ne 400); cap-check za nov ključ → 400 „presega naročeno" (neuspel tx ne
+  persistira ključa); legacy no-key → 400 terminal guard BIT-FOR-BIT.
+  Ključ persistiran na GRN (`@@unique([purchaseOrderId, idempotencyKey])`,
+  schema.prisma:2551).
 - **VERIGA D (§12/§22-D)**: odpad → write-off 6.00 + WasteRecord snapshot +
   audit; replay idempotencyKey → ISTA vrstica (replay: true), EN efekt;
   reverse → kompenzacijski `return` s snapshot ceno; double reverse → 409.
@@ -153,7 +161,7 @@ r128/r132/r151/r207):
 | G4 | batch-PUT adjust brez ključavnic/batcha/audita | inventory/adjust/route.ts:142-217 (komentar :124-126) | dokumentirana izjema; posamezen artikel še vedno pogojno dekrementiran | ODPRTA — kandidat za #152 korak 2 |
 | G5 | DELETE `inventory/[id]` brez ključavnice/audita | inventory/[id]/_helpers.ts:61-86 | redka operacija (soft-delete); StockTx Restrict ohranja ledger | ODPRTA |
 | G6 | reorder create-order pre-R182 pot brez ključavnic | inventory/reorder/_helpers/create-order.ts:43-56 | avto-prevzem je increment (kvantiteta varna tudi brez ključavnice) | ODPRTA |
-| G7 | PO receive brez klientega idempotencyKey | receive kanon (_helpers.ts:105-149) — terminal-status guard + cap-check sta edina zavora | dup prevzem z ISTIMI količinami po statusu `partial` + cap povečavi je po oblikovanju možen (cap-check edina zavora); poln receive → terminalno stanje → 400 | ODPRTA — kandidat za #152 korak 2 (R116 ključ kanon) |
+| G7 | PO receive brez klientega idempotencyKey | receive kanon (_helpers.ts:113-494) — prej: terminal-status guard + cap-check sta edina zavora | dup prevzem z ISTIMI količinami po statusu `partial` + cap povečavi je bil po oblikovanju možen (cap-check edina zavora); poln receive → terminalno stanje → 400 | **ZAPRTA R212** — klientov opcijski `idempotencyKey` na GRN (`@@unique([purchaseOrderId, idempotencyKey])`, schema.prisma:2551); replay check POD `hashtext(poId)` advisory lockom (_helpers.ts:156-180) in PRED terminalnimi zaščitami → retry = 200 ISTI GRN, EN efekt (brez dup zaloga/StockTx/PH/AP); scope ključa je (purchaseOrderId, key) — PO/GRN lokacija nullable (PG NULL ≠ NULL luknja pri (locationId, key)), per-PO lock pokriva replay ISTEGA naročila; P2002 race → 409 retry z istim ključem → replay 200; NULL ključ = legacy bit-for-bit; dokaz: r209 drill G7 (4 IT) + r212-receive-idempotency unit |
 | G8 | SupplierPriceHistory NI privzeti COGS basis (samo opt-in) | recipes/route.ts:75-137 (`?priceSource=supplier`) | privzeti food-cost/COGS bere `InventoryItem.costPerUnit/costPerServing` (spot); nova cena ne prepisuje zgodovine (append-only PH + snapshot totalCost na tx) — zgodovinski costing ostaja | BY DESIGN (deklarirano) |
 | G9 | `InventoryBatch.unitCost` shranjen, a NE uporabljen v costing | schema.prisma:1295; noben costing path ga ne bere | batch cost basis „pripravlja tla" za morebitno lot-valorizacijo — trenutno ne-povezano | ODPRTA (ne-deklarirana funkcija) |
 | G10 | brez avtomatskega expiry write-off joba | batches route samo poroča (`isExpired`, `isExpiringSoon` route :87-115) | pretečene serije poročane; FEFO jih naravno porabi prve; ni cron odpisa | ODPRTA — izrecno ne-implementirano |
@@ -180,7 +188,8 @@ r128/r132/r151/r207):
 
 ## 7. Pokritost testov (repo dokazi)
 
-- **IT (prava PGlite)**: `r209-inventory-chain-drill` (15 — žive verige §4),
+- **IT (prava PGlite)**: `r209-inventory-chain-drill` (19 — žive verige §4,
+  vključno R212 G7 replay dokaz),
   `r130-supplier-price-history`, `r129-reorder-to-po`,
   `r131-supplier-catalog-drill`, `r132-recon-drill` (three-way match +
   „price history NI prepisana").
@@ -189,7 +198,8 @@ r128/r132/r151/r207):
   r120 batches route + batch-lot-fefo (security), r105 PO receive concurrency
   (PO-1..6), r106 inventory stock concurrency (INV-1..3), r182 stock-lock
   canon, r161 last-2-units, r130/r131 price history + pack size, r129 reorder
-  canon, lib/yield + lib/menu-availability.
+  canon, r211 menu-stock location, r212 receive idempotency (key passthrough
+  + replay wire), lib/yield + lib/menu-availability.
 - **E2E**: core-flow FLOW-13 (sale tx + zmanjšana zaloga po golden pathu),
   danes-cockpit menu-stock error stanja, observability DB health
   (`db.inventory.negativeCount`).
