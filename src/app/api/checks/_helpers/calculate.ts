@@ -1,9 +1,20 @@
 // Pomožne funkcije za Checks API
 // Izračuni zneskov, validacija popustov
+//
+// ─── R207 (issue #151 korak 2, §18): DECIMAL MIGRACIJA ───
+// calculateCheckAmounts je prej akumuliral `subtotal += itemBase` v JS float.
+// Kanon P1-8 pravi: "vsa aritmetika gre skozi Prisma.Decimal". Zdaj se vsote
+// akumulirajo v Prisma.Decimal (točno za 2dp vhode) — pretvorba v number je
+// izključno na API meji. Pisalna meja ostaja zaščitena z round2(...) v
+// R181 recalc kanonu (transaction.ts) — obnašanje na pisalni meji je
+// nespremenjeno (parity dokaz: tests/unit/lib/r151-financial-chain-pins.test.ts
+// §18). To je bila dokumentirana kanon-divergenca (NE potrjen defekt — pri
+// 2dp vhodih in realističnih velikostih odmika na pisalni meji ni bilo);
+// divergenca je z migracijo odpravljena v izvoru.
 
 import { db } from '@/lib/db'
 import { Prisma } from '@prisma/client'
-import { toNum } from '@/lib/decimal'
+import { toNum, toDec } from '@/lib/decimal'
 
 // ─── Tipi ────────────────────────────────────────────────────
 
@@ -24,17 +35,22 @@ export function calculateCheckAmounts(checkOrderItems: CheckOrderItem[]): {
   subtotal: number
   tax: number
 } {
-  let subtotal = 0
-  let tax = 0
+  // R207 §18: akumulacija v Prisma.Decimal — vsota 2dp vrednosti je v
+  // Decimal TOČNA (ni float akumulacijskega odmika). Kontrakt nespremenjen:
+  // { subtotal: number, tax: number } (number = izključno API meja).
+  let subtotal = new Prisma.Decimal(0)
+  let tax = new Prisma.Decimal(0)
   for (const oi of checkOrderItems) {
-    const itemBase = toNum(oi.price) * oi.quantity
-    const itemVat = toNum(oi.vatAmount) > 0
-      ? toNum(oi.vatAmount)
-      : (toNum(oi.price) * oi.quantity * toNum(oi.vatRate) / 100)
-    subtotal += itemBase
-    tax += itemVat
+    const price = toDec(oi.price)
+    const qty = toDec(oi.quantity)
+    const itemBase = price.times(qty)
+    const itemVat = toDec(oi.vatAmount).gt(0)
+      ? toDec(oi.vatAmount)
+      : price.times(qty).times(toDec(oi.vatRate)).dividedBy(100)
+    subtotal = subtotal.plus(itemBase)
+    tax = tax.plus(itemVat)
   }
-  return { subtotal, tax }
+  return { subtotal: subtotal.toNumber(), tax: tax.toNumber() }
 }
 
 // ─── Validacija in izračun popusta ───────────────────────────
