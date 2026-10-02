@@ -124,6 +124,7 @@ import { POST as stocktakeSubmitPost } from '@/app/api/stocktakes/[id]/submit/ro
 import { POST as stocktakeApprovePost } from '@/app/api/stocktakes/[id]/approve/route'
 import { POST as poReceive } from '@/app/api/purchase-orders/[id]/receive/route'
 import { PUT as adjustBatchPut } from '@/app/api/inventory/adjust/route'
+import { POST as qrOrderPost } from '@/app/api/public/order/route'
 import { GET as reportsEodGet } from '@/app/api/reports/eod/route'
 import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { fetchEodData } from '@/app/api/reports/eod/_helpers/data-fetch'
@@ -152,6 +153,9 @@ const IDS = {
   invG2: `${RUN_ID}-inv-g2`, // R216 G2: business-day bucketiranje (cross-midnight)
   po: `${RUN_ID}-po`,
   po2: `${RUN_ID}-po-2`, // R212 G7: idempotency replay (2. PO — 1. je terminalan)
+  invG3: `${RUN_ID}-inv-g3`, // R218 G3: QR odvod (ključavnice + FEFO + orderId)
+  menuItemQr: `${RUN_ID}-mi-qr`, // R218 G3: QR menu artikel
+  table: `${RUN_ID}-table`, // R218 G3: QR miza (tableId pot)
 }
 
 const IDEM_ORDER_PIZZA = `${RUN_ID}-order-pizza`
@@ -208,6 +212,12 @@ let stocktakeId = ''
 let stocktakeLineFlour = ''
 let wasteRecordId = ''
 const auditStart = new Date(Date.now() - 60_000)
+// R218 G3: QR order id (uspešen POST — cleanup po RUN_ID)
+let g3OrderId = ''
+// R218 G3: lastna lokacija BREZ vezaja (R87-3 QR regex ^[a-z0-9]{5,50}$ ne
+// sprejema RUN_ID-jevih vezajev) — celoten QR kontekst (menu/lastnosti/miza/urnik)
+// je seedan na njej, cleanup po njej.
+const G3_LOC = `${RUN_ID.replace(/-/g, '')}g3loc`
 
 beforeAll(async () => {
   await db.location.create({
@@ -430,7 +440,7 @@ beforeAll(async () => {
 afterAll(async () => {
   // Čiščenje po FK redu — ORKENTIRANO na RUN_ID entitete (IT tečejo zaporedno,
   // fileParallelism: false, a delijo isto PGlite bazo — nikoli deleteMany brez scope-a).
-  const itemIds = [IDS.invFlour, IDS.invJuice, IDS.invOil, IDS.invWaste, IDS.invBatch, IDS.invG2]
+  const itemIds = [IDS.invFlour, IDS.invJuice, IDS.invOil, IDS.invWaste, IDS.invBatch, IDS.invG2, IDS.invG3]
 
   await db.auditLog
     .deleteMany({
@@ -459,7 +469,15 @@ afterAll(async () => {
   await db.order.deleteMany({ where: { idempotencyKey: { in: [IDEM_ORDER_PIZZA, IDEM_ORDER_JUICE] } } }).catch(() => {})
   // R216 G2: direkt kreirana naročila (brez idempotencyKey — po id)
   await db.order.deleteMany({ where: { id: { in: [`${RUN_ID}-g2-order-paid`, `${RUN_ID}-g2-order-unpaid`] } } }).catch(() => {})
-  await db.menuItem.deleteMany({ where: { id: { in: [IDS.menuItemPizza, IDS.menuItemJuice] } } }).catch(() => {})
+  // R218 G3: QR naročilo (brez idempotencyKey — po id) + miza + urnik + diningOption
+  await db.order.deleteMany({ where: { id: g3OrderId } }).catch(() => {})
+  await db.diningOption.deleteMany({ where: { locationId: G3_LOC } }).catch(() => {})
+  await db.table.deleteMany({ where: { id: IDS.table } }).catch(() => {})
+  await db.openingHours.deleteMany({ where: { locationId: G3_LOC } }).catch(() => {})
+  await db.menu.deleteMany({ where: { id: `${RUN_ID.replace(/-/g, '')}g3menu` } }).catch(() => {})
+  await db.category.deleteMany({ where: { id: `${RUN_ID.replace(/-/g, '')}g3cat` } }).catch(() => {})
+  await db.location.deleteMany({ where: { id: G3_LOC } }).catch(() => {})
+  await db.menuItem.deleteMany({ where: { id: { in: [IDS.menuItemPizza, IDS.menuItemJuice, IDS.menuItemQr] } } }).catch(() => {})
   await db.category.deleteMany({ where: { id: IDS.category } }).catch(() => {})
   await db.menu.deleteMany({ where: { id: IDS.menu } }).catch(() => {})
   await db.inventoryItem.deleteMany({ where: { id: { in: itemIds } } }).catch(() => {})
@@ -807,8 +825,8 @@ describe('R209 D: odpad → write-off 6.00 + WasteRecord snapshot; replay → IS
         idempotencyKey: IDEM_WASTE,
       }),
     )
-    expect(res.status).toBe(201)
     const body = await asJson(res)
+    expect(res.status).toBe(201)
     expect(body.replay).toBe(false)
     const record = body.record as Record<string, unknown>
     wasteRecordId = String(record.id)
@@ -1447,5 +1465,177 @@ describe('R216 G2: sale-chain COGS na poslovnem dnevu prodaje (order.paidAt kano
     expect(dash.todayCogs).toBe(16)
     expect(dash.grossProfit).toBeCloseTo(84, 2)
     expect(dash.grossMargin).toBeCloseTo(84, 2)
+  })
+})
+
+// =====================================================================
+// R218 G3 (epik #144 / issue #152 korak 2): QR odvodni tok na kanon
+// pariteti — acquireInvStockLocks (R182 vesolj) + FEFO
+// recordBatchConsumption (R120; prej unbatched uhajanje — §5 G3) +
+// orderId na sale StockTx (G2 kanon pariteta — prej edini sale pisec
+// brez njega). Route POST /api/public/order (javna QR pot, brez auth;
+// rate limit 5/min — 2 klica). Lokalni seed: invG3 + 2 seriji +
+// menuItemQr + miza + openingHours (isRestaurantOpen je fail-closed —
+// brez urnika 403). Vzorec R214 G4/R216 G2: lokalni seed, ni vstopa v
+// obstoječe verige.
+// =====================================================================
+describe('R218 G3: QR odvodni tok — ključavnice + FEFO po serijah + orderId (G2 pariteta)', () => {
+  beforeAll(async () => {
+    // R87-3: lokacija mora obstajati + biti aktivna + id brez vezaja (regex zgoraj)
+    await db.location.create({
+      data: {
+        id: G3_LOC,
+        name: 'R218 G3 Lokacija',
+        code: `${RUN_ID.replace(/-/g, '')}g3lc`,
+        premisesId: `${RUN_ID}-p-g3`,
+        isActive: true,
+      },
+    })
+    const menuQr = `${RUN_ID.replace(/-/g, '')}g3menu`
+    const catQr = `${RUN_ID.replace(/-/g, '')}g3cat`
+    await db.menu.create({ data: { id: menuQr, name: `R218 QR Meni ${RUN_ID}`, locationId: G3_LOC } })
+    await db.category.create({ data: { id: catQr, name: `R218 QR Kat ${RUN_ID}`, menuId: menuQr } })
+    await db.menuItem.create({
+      data: { id: IDS.menuItemQr, name: 'R218 QR Artikel', price: 7.5, categoryId: catQr, vatRate: 22 },
+    })
+    await db.inventoryItem.create({
+      data: {
+        id: IDS.invG3,
+        name: 'R218 G3 Artikel',
+        unit: 'kg',
+        quantity: 3,
+        minQuantity: 1,
+        costPerUnit: 2.0,
+        servingsPerUnit: 1,
+        locationId: G3_LOC,
+      },
+    })
+    // Recept: usable 0.25 kg/servis @ yield 50 % (RAW = 0.5 kg/servis)
+    await db.recipeItem.create({
+      data: {
+        menuItemId: IDS.menuItemQr,
+        inventoryItemId: IDS.invG3,
+        quantityPerServing: 0.25,
+        yieldPercent: 50,
+        unit: 'kg',
+      },
+    })
+    // FEFO seriji: LOT-G3-B izteče prej (porabljen prvi, 0.6), LOT-G3-A (2.4) nadaljuje
+    await db.inventoryBatch.create({
+      data: {
+        inventoryItemId: IDS.invG3,
+        locationId: G3_LOC,
+        lotNumber: 'LOT-G3-B',
+        receivedAt: new Date(Date.now() - 36 * 3600 * 1000),
+        expiryDate: new Date(Date.now() + 2 * 24 * 3600 * 1000),
+        quantityInitial: 0.6,
+        quantityRemaining: 0.6,
+        unit: 'kg',
+        unitCost: 2.0,
+        status: 'ACTIVE',
+      },
+    })
+    await db.inventoryBatch.create({
+      data: {
+        inventoryItemId: IDS.invG3,
+        locationId: G3_LOC,
+        lotNumber: 'LOT-G3-A',
+        receivedAt: new Date(Date.now() - 72 * 3600 * 1000),
+        expiryDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+        quantityInitial: 2.4,
+        quantityRemaining: 2.4,
+        unit: 'kg',
+        unitCost: 2.0,
+        status: 'ACTIVE',
+      },
+    })
+    // Miza (tableId pot — resolveTable findUnique po id) + urnik za vseh 7 dni
+    // (isRestaurantOpen je fail-closed: brez OpeningHours vrstic → 403)
+    await db.table.create({
+      data: { id: IDS.table, number: 990, capacity: 4, status: 'available', locationId: G3_LOC },
+    })
+    for (let day = 0; day <= 6; day++) {
+      await db.openingHours.create({
+        data: { dayOfWeek: day, openTime: '00:00', closeTime: '23:59', isClosed: false, locationId: G3_LOC },
+      })
+    }
+  })
+
+  it('G3: QR POST → 201, sale StockTx nosi orderId (G2 pariteta) + FEFO: LOT-G3-B izčrpana → LOT-G3-A nadaljuje', async () => {
+    const res = await qrOrderPost(post('/api/public/order', {
+      tableId: IDS.table,
+      locationId: G3_LOC,
+      customerName: 'G3 QR gost',
+      items: [{ menuItemId: IDS.menuItemQr, quantity: 2, notes: '', modifiersJson: '[]' }],
+    }))
+    const body = await asJson(res)
+    expect(res.status).toBe(201)
+    const order = body.order as { id: string; orderNumber: string }
+    g3OrderId = order.id
+    expect(order.id).toBeTruthy()
+    expect(order.orderNumber).toBeTruthy()
+
+    // zaloga: 3 − (2 servisov × 0.5 RAW) = 2 kg
+    const item = await db.inventoryItem.findUnique({ where: { id: IDS.invG3 } })
+    expect(Number(item!.quantity)).toBe(2)
+
+    // G2 kanon pariteta: sale StockTx nosi orderId — QR ni več izjema
+    // (prej edini sale pisec brez orderId → createdAt fallback bucketiranje)
+    const stockTx = await db.stockTransaction.findFirst({
+      where: { inventoryItemId: IDS.invG3, type: 'sale' },
+      orderBy: { createdAt: 'desc' },
+    })
+    expect(stockTx).not.toBeNull()
+    expect(stockTx!.orderId).toBe(order.id)
+    expect(Number(stockTx!.quantity)).toBe(-1)
+    expect(Number(stockTx!.previousQty)).toBe(3)
+    expect(Number(stockTx!.newQty)).toBe(2)
+    expect(stockTx!.reason).toContain('QR naročilo #')
+
+    // FEFO: LOT-G3-B (izteče prej) izčrpana, LOT-G3-A nadaljuje
+    const lotB = await db.inventoryBatch.findFirst({ where: { inventoryItemId: IDS.invG3, lotNumber: 'LOT-G3-B' } })
+    expect(Number(lotB!.quantityRemaining)).toBe(0)
+    expect(lotB!.status).toBe('EXHAUSTED')
+    const lotA = await db.inventoryBatch.findFirst({ where: { inventoryItemId: IDS.invG3, lotNumber: 'LOT-G3-A' } })
+    expect(Number(lotA!.quantityRemaining)).toBeCloseTo(2, 6)
+    expect(lotA!.status).toBe('ACTIVE')
+
+    // alokacije na ISTI StockTx — negativen odvod po kanonski konvenciji
+    const allocs = await db.stockBatchAllocation.findMany({ where: { stockTransactionId: stockTx!.id } })
+    expect(allocs).toHaveLength(2)
+    const allocSum = allocs.reduce((s, a) => s + Number(a.quantity), 0)
+    expect(allocSum).toBeCloseTo(-1, 6)
+    expect(allocs.every((a) => Number(a.quantity) < 0)).toBe(true)
+
+    // order.inventoryDeducted = true (v isti transakciji)
+    const ord = await db.order.findUnique({ where: { id: order.id } })
+    expect(ord!.inventoryDeducted).toBe(true)
+  })
+
+  it('G3: nezadostna zaloga → 409, celotna transakcija roll-back (ni orderja, ni StockTx, zaloga nespremenjena)', async () => {
+    const qtyBefore = Number((await db.inventoryItem.findUnique({ where: { id: IDS.invG3 } }))!.quantity)
+    const txBefore = await db.stockTransaction.count({ where: { inventoryItemId: IDS.invG3 } })
+
+    // 20 servisov × 0.5 RAW = 10 kg > 2 kg na zalogi (schema max 20 enot/artikel)
+    const res = await qrOrderPost(post('/api/public/order', {
+      tableId: IDS.table,
+      locationId: G3_LOC,
+      customerName: 'G3 preobseg',
+      items: [{ menuItemId: IDS.menuItemQr, quantity: 20, notes: '', modifiersJson: '[]' }],
+    }))
+    expect(res.status).toBe(409)
+    const body = await asJson(res)
+    expect(String(body.error)).toContain('ni več na zalogi')
+
+    // zaloga + ledger nespremenjena (pogojni decrement rollback — QR pot nima attempt vrstice)
+    const qtyAfter = Number((await db.inventoryItem.findUnique({ where: { id: IDS.invG3 } }))!.quantity)
+    expect(qtyAfter).toBe(2)
+    expect(qtyBefore).toBe(2)
+    expect(await db.stockTransaction.count({ where: { inventoryItemId: IDS.invG3 } })).toBe(txBefore)
+
+    // ni orderja (celotna order-create transakcija roll-back)
+    expect(g3OrderId).toBeTruthy() // 1. test je zabeležil svoj order
+    const orphan = await db.order.findFirst({ where: { locationId: G3_LOC, customerName: 'G3 preobseg' } })
+    expect(orphan).toBeNull()
   })
 })

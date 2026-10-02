@@ -7,6 +7,8 @@ import { rawFromUsable } from '@/lib/recipes/yield'
 import { logger } from '@/lib/logger'
 import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import { parseOrderItemModifiers } from '@/lib/json-fields'
+import { acquireInvStockLocks } from '@/lib/stock-deduction/locks'
+import { recordBatchConsumption } from '@/lib/stock-deduction/batch-allocation'
 
 // ─── Izračunaj cene artiklov iz strežniških podatkov (NE zaupaj klientu!) ───
 export interface OrderItemData {
@@ -94,7 +96,21 @@ export async function deductInventoryInTx(
     }>
   }>,
   orderNumber: number,
+  orderId: string,
 ): Promise<void> {
+  // R218 G3 (epik #144 / issue #152 korak 2): kanon R182 ključavnice — prej
+  // edini sale pisec BREZ advisory ključavnic (§5 G3). Vse artikle zakleni
+  // PRED prvo mutacijo InventoryItem.quantity (sortirano + dedup po
+  // acquireInvStockLocks → določen globalni vrstni red, deadlock nemogoč;
+  // ključavnice so listi lock grafa — entitetni kontekst, order.create, je
+  // že v tej transakciji izveden).
+  await acquireInvStockLocks(
+    tx,
+    items.flatMap((item) =>
+      (menuItemMap.get(item.menuItemId)?.recipeItems ?? []).map((r) => r.inventoryItem?.id ?? null),
+    ),
+  )
+
   for (const item of items) {
     const menuItem = menuItemMap.get(item.menuItemId)
     if (!menuItem) continue
@@ -118,9 +134,10 @@ export async function deductInventoryInTx(
 
       if (updated.count > 0) {
         const prevQty = toNum(currentInvItem.quantity)
+        const invItemId = recipe.inventoryItem.id
         await tx.stockTransaction.create({
           data: {
-            inventoryItemId: recipe.inventoryItem.id,
+            inventoryItemId: invItemId,
             type: 'sale',
             quantity: -deductQty,
             previousQty: prevQty,
@@ -128,8 +145,20 @@ export async function deductInventoryInTx(
             costPerUnit: toNum(currentInvItem.costPerUnit),
             totalCost: deductQty * toNum(currentInvItem.costPerUnit),
             reason: `QR naročilo #${orderNumber}`,
+            // R218 G3: G2 kanon pariteta — QR sale StockTx nosi orderId (prej
+            // edini sale pisec brez njega → createdAt fallback bucketiranje,
+            // neskladno z ostalimi tremi sale pisci).
+            orderId,
           },
-        })
+        }).then((stockTx) =>
+          // R120 (epic #115 §4) + R218 G3: FEFO razporeditev odbitka po
+          // serijah (prej unbatched uhajanje — INVENTORY-CHAIN.md §5 G3).
+          recordBatchConsumption(tx, {
+            inventoryItemId: invItemId,
+            quantity: deductQty,
+            stockTransactionId: stockTx.id,
+          }),
+        )
       } else {
         // FIX QR-03 HIGH: Zaloga ni zadostna — ne sprejmi naročila tiho!
         throw new Error(`INSUFFICIENT_STOCK:${menuItem.name}:potrebno ${deductQty.toFixed(2)} ${recipe.inventoryItem.unit || 'enot'}, na zalogi ${toNum(currentInvItem.quantity).toFixed(2)}`)

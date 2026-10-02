@@ -82,9 +82,9 @@ izrecno ne-implementirano (§6).
 | 10 | `src/lib/stock-deduction/deduct-recipe.ts:105` (attempt vrstica :84) | receptna poraba prodaje | `quantity: −actualDeducted`; pogojni decrement `gte` :60; FEFO :120 | `$transaction` v `deductStockForOrder` (deduct-order.ts:52) | `acquireInvStockLocks` pre-pass (deduct-order.ts:100) | Read Committed po kanonu R182; neuspeh ene sestavine → attempt vrstica qty 0, order NE pade (POS pot); FURS fallback ponovi ce `!inventoryDeducted` (post-verify.ts:38-47) |
 | 11 | `deduct-direct.ts:103` (attempt :81) | direktna 1:1 poraba (`InventoryItem.menuItemId`) | enak vzorec :55; `servingsPerUnit` pretvorba :47-48 | isti tx | isti | FEFO :117 |
 | 12 | `deduct-added-utils.ts:77/:154` (attempti :65/:142) | postavke dodane obstoječemu naročilu (`add-items`) | enak vzorec | znotraj R108 order-write Serializable tx (order-mutations.ts:191, lock :79) oz. lastna tx (legacy `deduct-added.ts:74`) | prek klicatelja | audit `ADD_ITEMS_TO_ORDER` (add-items/route.ts:144, `stockDeducted` count) |
-| 13 | `src/app/api/public/order/_helpers/order-calculations.ts:121` (`deductInventoryInTx`) | QR naročilo | pogojni decrement :111, throw `INSUFFICIENT_STOCK` :135 | znotraj order-create tx (public/order/route.ts:200-250, `inventoryDeducted` :236) | — (brez advisory ključavnic) | FEFO ni povezan (unbatched uhajanje) — §5 G3 |
+| 13 | `src/app/api/public/order/_helpers/order-calculations.ts:84` (`deductInventoryInTx`) | QR naročilo (kiosk pot deli isti helper — kiosk/route.ts:439, 5-arg orderId) | acquireInvStockLocks :107 (R218 G3), pogojni decrement :132, throw `INSUFFICIENT_STOCK` :164 | znotraj order-create tx (public/order/route.ts:200-250, `inventoryDeducted` :240) | acquireInvStockLocks :107 (sort+dedup+null-skip) | FEFO recordBatchConsumption :156 (R218 G3, unbatched zaprto) + orderId :151 (G2 pariteta) |
 | 14 | `src/app/api/public/online-order/_helpers/deduct-inventory.ts:45/:62` | online naročilo | enak vzorec; throw :75 | znotraj create-order.ts:121 tx | — | FEFO :54 |
-| 15 | `src/app/api/delivery/webhook/glovo/_helpers/glovo-inventory.ts:42/:60` (mirror `wolt-inventory.ts:44/:66`) | Glovo/Wolt webhook prodaja | enak vzorec; throw → `cancelOrderForInsufficientStock` (CAS pending→cancelled) | lastna tx :24 | — (pre-R182 divergenca) | §5 G3 |
+| 15 | `src/app/api/delivery/webhook/glovo/_helpers/glovo-inventory.ts:42/:71` (mirror `wolt-inventory.ts:44/:77`) | Glovo/Wolt webhook prodaja | R218 G3: pre-fetch menuMap tx-fresh (:31-45, N+1 odpravljen) → acquireInvStockLocks :42 → pogojni decrement :58; throw :94 → `cancelOrderForInsufficientStock` (CAS pending→cancelled) | lastna tx :25 | acquireInvStockLocks :42 (R218 G3 — pre-R182 divergenc zaprta) | FEFO :71 (R120, nespremenjen) |
 | 16 | `src/lib/stock-deduction/return-stock.ts:122/:225/:272` | vračilo ob preklicu/stornu/soft-delete, tip `return` | increment :115/:218/:265; snapshot mirror sale vrstic :87-99; double-return zaščita pod ključavnico :77-84 | lastna tx :302 oz. caller tx (order-actions.ts:137, perform-soft-delete.ts:68, storno-transaction.ts:150) | `stock-return:<orderId>` :65 + `acquireInvStockLocks` :105/:195 | batch mirror :137 |
 
 ### 3c. Preostali pisci (nejedrne poti)
@@ -149,6 +149,15 @@ r128/r132/r151/r207):
   (BIT-FOR-BIT); prevzem (30.00) ostane na času ognja; marža koherentna čez
   vse konzumente (EOD grossProfit 84 = financial 84 = dashboard 84, revenue
   100 − cogs 16); D1/D3 okna prazna (brez dvojnega štetja, brez izgube vrstic).
+- **R218 G3 (QR odvodni tok)**: QR POST /api/public/order (javna pot, brez
+  auth, rate limit 5/min) 2 servisov → 201; sale StockTx **nosi orderId** (G2
+  kanon pariteta — prej edini sale pisec brez njega), quantity −1 (2 × 0.5 RAW
+  @ 50 % yield), previousQty 3 → newQty 2; **FEFO po serijah**: LOT-G3-B 0.6
+  izčrpana (EXHAUSTED) + LOT-G3-A −0.4 → 2.0 (ACTIVE) — prej unbatched
+  uhajanje; alokaciji 2 vrstici na ISTI StockTx (negativen odvod, Σ = −1);
+  order.inventoryDeducted true v isti tx. Nezadostna zaloga (20 servisov ×
+  0.5 = 10 kg > 2 kg): **409** „ni več na zalogi" + celotna order-create tx
+  roll-back — ni orderja, ni StockTx, zaloga nespremenjena (2).
 - **VERIGA D (§12/§22-D)**: odpad → write-off 6.00 + WasteRecord snapshot +
   audit; replay idempotencyKey → ISTA vrstica (replay: true), EN efekt;
   reverse → kompenzacijski `return` s snapshot ceno; double reverse → 409.
@@ -172,7 +181,7 @@ r128/r132/r151/r207):
 |---|---|---|---|---|
 | G1 | menu-stock availability read NI location-scoped | `inventory/menu-stock/route.ts:26` kliče `computeMenuStockMap()` brez scope-a; `InventoryItem @@unique([menuItemId, locationId])` (schema.prisma:1224) → multi-lokacijski tenant lahko vidi napačno lokacijo | kozmetično na POS mapi — blokada na write strani ostane avtoritativna (pogojni decrement) | ODPRTA — kandidat za #152 korak 2 |
 | G2 | business-day bucketiranje: prihodki na `Order.paidAt` (LJ poslovni dan), COGS/vhodi na `StockTransaction.createdAt` (čas ognja) | `reports/financial/_helpers-queries.ts` (stockWhere), `reports/eod/_helpers/data-fetch.ts` (poizvedba 10), `dashboard/_helpers/furs-shift-cogs.ts`, `lib/accounting/journal-generator.ts` (P&L COGS fallback) | naročilo ob 23:50 / plačilo ob 00:10 lahko meša dneva v bruto marži | **ZAPRTA R216** — kanon pariteta, usklajeno z #148 ljubljanaDayBounds: relacija `StockTransaction.order` (schema + 0026_stocktx_order_relation — sirote prečiščene, FK ON DELETE SET NULL); sale-chain ('sale' + 'return' — vsi pisatelji nastavijo orderId v isti tx: deduct-recipe/direct/added, public/online-order, glovo/wolt, void-return) bucketiran na `order.paidAt` (ISTI kanon kot prihodki) prek skupnega helperja `src/lib/reports/sale-cogs-bucketing.ts` (`buildSaleCogsWindowFilter`: veja A order.paidAt okno XOR veja B fallback createdAt z unpaid/no-order guardom — brez dvojnega štetja in brez izgube vrstic); ne-naročilni tipi (procurement/write-off/adjustment/batch-*) ostanejo na createdAt (BIT-FOR-BIT); scope `inventoryItem.locationId` ostane top-level ključ (R84-1/R85 pini ohranjeni); dokaz: r209 drill G2 (3 IT — cross-midnight 23:50/00:10 marža 100−16 koherentna, storno naslednji dan sledi prodajnemu dnevu, D1/D3 prazna okna) + r216-business-day-cogs unit (11 — helper + 4 konzumenta where-pini) |
-| G3 | QR/online/Glovo/Wolt odvodni tokovi brez advisory ključavnic (pre-R182) | order-calculations.ts:121, deduct-inventory.ts:45, glovo-inventory.ts:42 | kanon izjema — zaščita ostane pogojni decrement + tx; brez serializacije čez pisci | ODPRTA — nizka prioriteta (public tokovi imajo lastne CAS zaščite) |
+| G3 | QR/online/Glovo/Wolt odvodni tokovi brez advisory ključavnic (pre-R182) | order-calculations.ts:107, deduct-inventory.ts:34, glovo-inventory.ts:42 (mirror wolt :44) | ZAPRTA R218 — kanon pariteta: vsi 4 pisci acquireInvStockLocks (sort+dedup+null-skip, PRED prvo mutacijo; entitetni kontekst order.create pred ključavnicami = listi lock grafa; sale path ostane Read Committed po locks.ts kanonu — Serializable bi dodal P2034 retry-noise); QR dopolnjen: FEFO recordBatchConsumption :156 (unbatched uhajanje zaprto) + orderId :151 (G2 kanon pariteta — prej edini sale pisec brez njega); glovo/wolt pre-fetch menuMap tx-fresh (N+1 odpravljen); kiosk (5. pisec prek deductInventoryInTx — kiosk/route.ts:439, newOrder.id) podeduje fix; BIT-FOR-BIT: pogojni decrement gte, INSUFFICIENT_STOCK throw/409, attempt vrstice, cancelOrderForInsufficientStock | ZAPRTA R218 |
 | G4 | batch-PUT adjust brez ključavnic/batcha/audita | inventory/adjust/route.ts:142-217 (komentar :124-126) | dokumentirana izjema; posamezen artikel še vedno pogojno dekrementiran | **ZAPRTA R214** — kanon pariteta: `acquireInvStockLocks` :166 (R182 vesolj — sort+dedup, receive-kanon vzorec: vse ključavnice PRED prvo mutacijo = deadlock-free ordering), Serializable tx (TX_OPTS :19-22 = stock-mutations pariteta), FEFO batch razknjižba `recordBatchConsumption` :267 per uspešen odpis (sale-safety: napaka alokacije ne podre odpisa), `createAuditLogsBatch` :283 (INVENTORY_ADJUST per uspešen odpis — tx-fresh previousQty/newQty/itemName, isti details shape kot POST :92-105, PCI hash veriga; skip artikli se ne revidirajo kot odpis — poskus viden v StockTx POSKUS vrstici :214), scoped re-read :235 (prej findUnique po raw id), P2002/P2034 → 409 :305-313 (pariteta s POST :117-119); P3 atomarni vzorec (updateMany gte :198) OSTANE ključni CAS, skipped semantika nespremenjena; dokaz: r209 drill G4 (2 IT — FEFO LOT-G4-B 3 + LOT-G4-A 1, mixed skip brez alokacije/audita) + r214-batch-adjust unit (6) + inventory-adjust P3 (4) |
 | G5 | DELETE `inventory/[id]` brez ključavnice/audita | inventory/[id]/_helpers.ts:61-86 | redka operacija (soft-delete); StockTx Restrict ohranja ledger | ODPRTA |
 | G6 | reorder create-order pre-R182 pot brez ključavnic | inventory/reorder/_helpers/create-order.ts:43-56 | avto-prevzem je increment (kvantiteta varna tudi brez ključavnice) | ODPRTA |
@@ -203,9 +212,10 @@ r128/r132/r151/r207):
 
 ## 7. Pokritost testov (repo dokazi)
 
-- **IT (prava PGlite)**: `r209-inventory-chain-drill` (24 — žive verige §4,
+- **IT (prava PGlite)**: `r209-inventory-chain-drill` (26 — žive verige §4,
   vključno R212 G7 replay dokaz + R214 G4 batch-PUT FEFO/audit dokaz + R216 G2
-  business-day bucketiranje dokaz — cross-midnight marža koherentna),
+  business-day bucketiranje dokaz — cross-midnight marža koherentna + R218 G3
+  QR odvod dokaz — ključavnice + FEFO po serijah + orderId + 409 roll-back),
   `r130-supplier-price-history`, `r129-reorder-to-po`,
   `r131-supplier-catalog-drill`, `r132-recon-drill` (three-way match +
   „price history NI prepisana").
@@ -217,7 +227,9 @@ r128/r132/r151/r207):
   canon, r211 menu-stock location, r212 receive idempotency (key passthrough
   + replay wire), r214 batch-PUT adjust kanon pariteta (ključavnice +
   Serializable + FEFO + audit + scoped re-read + 409), r216 business-day COGS
-  bucketiranje (helper + 4 konzumenta where-pini), lib/yield +
+  bucketiranje (helper + 4 konzumenta where-pini), r218-g3-sale-deduct (4+1
+  pisci kanon pariteta — fs-pini lock-ordering, QR orderId/FEFO runtime
+  call-order, glovo pre-fetch/N+1, kiosk 5-arg passthrough), lib/yield +
   lib/menu-availability.
 - **E2E**: core-flow FLOW-13 (sale tx + zmanjšana zaloga po golden pathu),
   danes-cockpit menu-stock error stanja, observability DB health

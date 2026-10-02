@@ -12,6 +12,7 @@ import { logger } from '@/lib/logger'
 import { toNum } from '@/lib/decimal'
 import { rawFromUsable } from '@/lib/recipes/yield'
 import { recordBatchConsumption } from '@/lib/stock-deduction/batch-allocation'
+import { acquireInvStockLocks } from '@/lib/stock-deduction/locks'
 import type { WebhookOrderItem } from './glovo-schema'
 
 // FIX CRITICAL: Zmanjšaj zalogo ZNOTRAJ transakcije (prepreči race condition)
@@ -22,11 +23,29 @@ export async function deductInventoryForOrder(
   providerLabel: string,
 ) {
   await db.$transaction(async (tx) => {
-    for (const item of orderItems) {
-      const menuItem = await tx.menuItem.findUnique({
-        where: { id: item.menuItemId },
+    // R218 G3 (epik #144 / issue #152 korak 2): pre-fetch vseh menuItems ENKRAT
+    // (tx-fresh) — zbir invIds za acquireInvStockLocks (kanon R182: vse
+    // ključavnice PRED prvo mutacijo, sortirane + dedup — deadlock nemogoč)
+    // in odpravi N+1 fetch v zanki (recepti se berejo iz istega tx-fresh
+    // zemljevida, ki ga ključavnice varujejo).
+    const loadMenuItem = (id: string) =>
+      tx.menuItem.findUnique({
+        where: { id },
         include: { recipeItems: { include: { inventoryItem: true } } },
       })
+    const menuMap = new Map<string, Awaited<ReturnType<typeof loadMenuItem>>>()
+    for (const item of orderItems) {
+      if (!menuMap.has(item.menuItemId)) {
+        menuMap.set(item.menuItemId, await loadMenuItem(item.menuItemId))
+      }
+    }
+    await acquireInvStockLocks(
+      tx,
+      [...menuMap.values()].flatMap((m) => (m?.recipeItems ?? []).map((r) => r.inventoryItem?.id ?? null)),
+    )
+
+    for (const item of orderItems) {
+      const menuItem = menuMap.get(item.menuItemId)
       if (!menuItem) continue
       for (const recipe of menuItem.recipeItems) {
         if (!recipe.inventoryItem) continue

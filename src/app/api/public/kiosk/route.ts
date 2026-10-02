@@ -434,7 +434,9 @@ export async function POST(req: Request) {
       }
 
       await tx.orderItem.updateMany({ where: { orderId: newOrder.id }, data: { checkId: check.id } })
-      await deductInventoryInTx(tx, data!.orderItems, new Map(menuItems.map(mi => [mi.id, mi])), nextOrderNumber)
+      // R218 G3: orderId posredovan — kiosk sale StockTx nosi orderId (G2 kanon
+      // pariteta, pariteta z QR/online/glovo/wolt) + FEFO + ključavnice prek deductInventoryInTx.
+      await deductInventoryInTx(tx, data!.orderItems, new Map(menuItems.map(mi => [mi.id, mi])), nextOrderNumber, newOrder.id)
       await tx.order.update({ where: { id: newOrder.id }, data: { inventoryDeducted: true } })
 
       return newOrder

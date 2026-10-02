@@ -230,7 +230,9 @@ export async function POST(req: Request) {
       )
 
       // Zmanjšaj zalogo znotraj transakcije (atomarno - prepreči race condition)
-      await deductInventoryInTx(tx, items, menuItemMap, nextOrderNumber)
+      // R218 G3: orderId posredovan — QR sale StockTx nosi orderId (G2 kanon
+      // pariteta) + FEFO recordBatchConsumption (unbatched uhajanje zaprto).
+      await deductInventoryInTx(tx, items, menuItemMap, nextOrderNumber, newOrder.id)
 
       // Označi, da je zaloga zmanjšana
       await tx.order.update({

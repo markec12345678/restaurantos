@@ -11,6 +11,7 @@ import { toNum, type DecimalLike } from '@/lib/decimal'
 import { rawFromUsable } from '@/lib/recipes/yield'
 import { logger } from '@/lib/logger'
 import { recordBatchConsumption } from '@/lib/stock-deduction/batch-allocation'
+import { acquireInvStockLocks } from '@/lib/stock-deduction/locks'
 
 export async function deductInventory(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
@@ -26,6 +27,17 @@ export async function deductInventory(
   nextOrderNumber: number,
   newOrderId: string,
 ): Promise<void> {
+  // R218 G3 (epik #144 / issue #152 korak 2): kanon R182 ključavnice — vse
+  // artikle zakleni PRED prvo mutacijo InventoryItem.quantity (sortirano +
+  // dedup po acquireInvStockLocks → določen globalni vrstni red, deadlock
+  // nemogoč; entitetni kontekst — order.create — je že izveden v isti tx).
+  await acquireInvStockLocks(
+    tx,
+    items.flatMap((item) =>
+      (menuItemMap.get(item.menuItemId)?.recipeItems ?? []).map((r) => r.inventoryItem?.id ?? null),
+    ),
+  )
+
   for (const item of items) {
     const menuItem = menuItemMap.get(item.menuItemId)
     if (!menuItem) continue
