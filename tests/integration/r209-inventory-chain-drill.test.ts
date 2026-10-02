@@ -125,7 +125,12 @@ import { POST as stocktakeApprovePost } from '@/app/api/stocktakes/[id]/approve/
 import { POST as poReceive } from '@/app/api/purchase-orders/[id]/receive/route'
 import { PUT as adjustBatchPut } from '@/app/api/inventory/adjust/route'
 import { GET as reportsEodGet } from '@/app/api/reports/eod/route'
-import { ljubljanaTodayStr } from '@/lib/timezone-sl'
+import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
+import { fetchEodData } from '@/app/api/reports/eod/_helpers/data-fetch'
+import { computeEodMetrics } from '@/app/api/reports/eod/_helpers/metrics'
+import { fetchFinancialData } from '@/app/api/reports/financial/_helpers-queries'
+import { computeStockCosts } from '@/app/api/reports/financial/_helpers-compute/tips-tables-heatmap'
+import { fetchFursShiftCogs } from '@/app/api/dashboard/_helpers/furs-shift-cogs'
 
 const RUN_ID = `r209-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const YEAR = new Date().getFullYear()
@@ -144,6 +149,7 @@ const IDS = {
   invOil: `${RUN_ID}-inv-oil`, // PO prevzem (L)
   invWaste: `${RUN_ID}-inv-waste`, // odpad (kos)
   invBatch: `${RUN_ID}-inv-batch`, // R214 G4: batch-PUT adjust (FEFO serije)
+  invG2: `${RUN_ID}-inv-g2`, // R216 G2: business-day bucketiranje (cross-midnight)
   po: `${RUN_ID}-po`,
   po2: `${RUN_ID}-po-2`, // R212 G7: idempotency replay (2. PO — 1. je terminalan)
 }
@@ -335,6 +341,20 @@ beforeAll(async () => {
     },
   })
 
+  // R216 G2: artikel za business-day bucketiranje (cross-midnight scenarij)
+  await db.inventoryItem.create({
+    data: {
+      id: IDS.invG2,
+      name: 'R216 G2 Artikel',
+      unit: 'kg',
+      quantity: 48.6,
+      minQuantity: 1,
+      costPerUnit: 0.6,
+      servingsPerUnit: 1,
+      locationId: IDS.location,
+    },
+  })
+
   // Recept: pica ← moka, usable 0.25 kg/servis @ yield 50 % (RAW = 0.5 kg/servis)
   await db.recipeItem.create({
     data: {
@@ -410,7 +430,7 @@ beforeAll(async () => {
 afterAll(async () => {
   // Čiščenje po FK redu — ORKENTIRANO na RUN_ID entitete (IT tečejo zaporedno,
   // fileParallelism: false, a delijo isto PGlite bazo — nikoli deleteMany brez scope-a).
-  const itemIds = [IDS.invFlour, IDS.invJuice, IDS.invOil, IDS.invWaste, IDS.invBatch]
+  const itemIds = [IDS.invFlour, IDS.invJuice, IDS.invOil, IDS.invWaste, IDS.invBatch, IDS.invG2]
 
   await db.auditLog
     .deleteMany({
@@ -437,6 +457,8 @@ afterAll(async () => {
   await db.purchaseOrder.deleteMany({ where: { id: { in: [IDS.po, IDS.po2] } } }).catch(() => {})
   await db.payment.deleteMany({ where: { idempotencyKey: IDEM_PAY } }).catch(() => {})
   await db.order.deleteMany({ where: { idempotencyKey: { in: [IDEM_ORDER_PIZZA, IDEM_ORDER_JUICE] } } }).catch(() => {})
+  // R216 G2: direkt kreirana naročila (brez idempotencyKey — po id)
+  await db.order.deleteMany({ where: { id: { in: [`${RUN_ID}-g2-order-paid`, `${RUN_ID}-g2-order-unpaid`] } } }).catch(() => {})
   await db.menuItem.deleteMany({ where: { id: { in: [IDS.menuItemPizza, IDS.menuItemJuice] } } }).catch(() => {})
   await db.category.deleteMany({ where: { id: IDS.category } }).catch(() => {})
   await db.menu.deleteMany({ where: { id: IDS.menu } }).catch(() => {})
@@ -1292,5 +1314,138 @@ describe('R214 G4: batch-PUT adjust — FEFO razknjižba po serijah + INVENTORY_
     // skip NI revidiran kot odpis: NI INVENTORY_ADJUST za invOil (poskus viden v StockTx POSKUS vrstici)
     const oilAudits = await db.auditLog.count({ where: { entityId: IDS.invOil, action: 'INVENTORY_ADJUST' } })
     expect(oilAudits).toBe(0)
+  })
+})
+
+// ============================================
+// R216 G2 (epik #144, #152 korak 2): SALE-CHAIN COGS BUSINESS-DAY BUCKETIRANJE
+// ============================================
+// Vrzel G2 (docs/INVENTORY-CHAIN.md §5): prihodki so bucketirani na
+// Order.paidAt (LJ poslovni dan — fiskalni kanon P2-08), COGS pa na
+// StockTransaction.createdAt (čas ognja). Naročilo ob 23:50 / plačilo ob
+// 00:10 je razdelilo bruto maržo med dneva.
+//
+// FIX (kanon pariteta, usklajeno z #148 ljubljanaDayBounds): sale-chain
+// ('sale' + 'return') se bucketira na order.paidAt — ISTI kanon kot
+// prihodki; fallback (brez plačanega naročila) + ne-naročilni tipi ostanejo
+// na času ognja (BIT-FOR-BIT). Relacija StockTransaction.order (0026).
+//
+// SCENARIJ (fikcni datumi 2026-03-15/16/17 — neodvisni od dana poganjanja):
+//   • naročilo ognjeno 23:50 (D1), plačano 00:10 (D2), sale COGS 10.00;
+//   • storno (return −2.00) ognjen DAN KASNEJE (D3 01:00) — sledi prodajnemu
+//     poslovnemu dnevu (D2), ne svojemu času ognja;
+//   • neplačano naročilo (sale 5.00, paidAt null) → fallback createdAt (D2);
+//   • sale brez orderId (1.00) → fallback createdAt (D2);
+//   • prevzem (30.00) → ostane na času ognja (D2).
+// OPOMBA: blok teče PO §19/§21 rekonciliaciji (file order) in uporablja
+// fikcne datume izven »danes« — ne vpliva na prejšnja EOD vrata.
+describe('R216 G2: sale-chain COGS na poslovnem dnevu prodaje (order.paidAt kanon)', () => {
+  const D1 = '2026-03-15'
+  const D2 = '2026-03-16'
+  const D3 = '2026-03-17'
+  const b = (d: string) => ljubljanaDayBounds(d)
+  const dayEndIncl = (d: string) => new Date(b(d).end.getTime() - 1)
+
+  // Kanonski trenutki (LJ lokalni časi, DST-varno prek ljubljanaDayBounds)
+  const FIRE_AT = new Date(b(D1).end.getTime() - 10 * 60_000) // D1 23:50 LJ (ognjen)
+  const PAID_AT = new Date(b(D2).start.getTime() + 10 * 60_000) // D2 00:10 LJ (plačan)
+  const RETURN_AT = new Date(b(D3).start.getTime() + 60 * 60_000) // D3 01:00 LJ (storno naslednji dan)
+  const PROC_AT = new Date(b(D2).start.getTime() + 9 * 3600_000) // D2 09:00 LJ
+  const UNPAID_AT = new Date(b(D2).start.getTime() + 12 * 3600_000) // D2 12:00 LJ
+  const NOORDER_AT = new Date(b(D2).start.getTime() + 13 * 3600_000) // D2 13:00 LJ
+
+  beforeAll(async () => {
+    // Naročili (direktno v bazi — vrzel G2 je BRALNA bucketing lastnost, ne
+    // write-pot; orderNumber unikaten po lokaciji — visok offset izven drill obsega)
+    await db.order.create({
+      data: {
+        id: `${RUN_ID}-g2-order-paid`,
+        orderNumber: 900001,
+        locationId: IDS.location,
+        status: 'completed',
+        paymentStatus: 'paid',
+        paidAt: PAID_AT,
+        inventoryDeducted: true,
+        subtotal: 82, tax: 18, total: 100, totalWithTip: 100,
+      },
+    })
+    await db.order.create({
+      data: {
+        id: `${RUN_ID}-g2-order-unpaid`,
+        orderNumber: 900002,
+        locationId: IDS.location,
+        status: 'in-progress',
+        paymentStatus: 'unpaid',
+      },
+    })
+
+    // Zalogovne vrstice (koherentna previous/new veriga po §21 vzorcu)
+    await db.stockTransaction.create({
+      data: { inventoryItemId: IDS.invG2, type: 'procurement', quantity: 50, previousQty: 0, newQty: 50, costPerUnit: 0.6, totalCost: 30, createdAt: PROC_AT, reason: 'G2 prevzem (ostane na casu ognja)' },
+    })
+    await db.stockTransaction.create({
+      data: { inventoryItemId: IDS.invG2, type: 'sale', quantity: -1, previousQty: 50, newQty: 49, costPerUnit: 10, totalCost: 10, orderId: `${RUN_ID}-g2-order-paid`, createdAt: FIRE_AT, reason: 'G2 cross-midnight prodaja (23:50)' },
+    })
+    await db.stockTransaction.create({
+      data: { inventoryItemId: IDS.invG2, type: 'return', quantity: 0.2, previousQty: 49, newQty: 49.2, costPerUnit: 10, totalCost: -2, orderId: `${RUN_ID}-g2-order-paid`, createdAt: RETURN_AT, reason: 'G2 storno dan kasneje — sledi prodajnemu dnevu' },
+    })
+    await db.stockTransaction.create({
+      data: { inventoryItemId: IDS.invG2, type: 'sale', quantity: -0.5, previousQty: 49.2, newQty: 48.7, costPerUnit: 10, totalCost: 5, orderId: `${RUN_ID}-g2-order-unpaid`, createdAt: UNPAID_AT, reason: 'G2 neplacano narocilo (fallback createdAt)' },
+    })
+    await db.stockTransaction.create({
+      data: { inventoryItemId: IDS.invG2, type: 'sale', quantity: -0.1, previousQty: 48.7, newQty: 48.6, costPerUnit: 10, totalCost: 1, createdAt: NOORDER_AT, reason: 'G2 sale brez orderId (fallback createdAt)' },
+    })
+  })
+
+  it('G2: poslovni dan D2 — sale Σ 16 (10+5+1), return Σ −2, procurement 30; EOD marža koherentna (100 − 16)', async () => {
+    const raw = await fetchEodData(b(D2).start, dayEndIncl(D2), IDS.location)
+    const byType = new Map(raw.stockCostGroups.map((g) => [g.type, Number(g._sum.totalCost)]))
+    // sale-chain po poslovnem dnevu prodaje: cross-midnight sale (ognjen D1
+    // 23:50!) je na D2; neplačano (fallback) + brez orderId (fallback) tudi
+    expect(byType.get('sale')).toBe(16)
+    // storno (ognjen D3 01:00!) je na prodajnem dnevu D2 — ne na svojem času ognja
+    expect(byType.get('return')).toBe(-2)
+    // ne-naročilni tip ostane na času ognja
+    expect(byType.get('procurement')).toBe(30)
+
+    // EOD metriko: prihodek (plačano naročilo, paidAt D2) in njegov COGS na ISTEM dnevu
+    const metrics = computeEodMetrics(raw)
+    expect(metrics.summary.totalRevenue).toBe(100)
+    expect(metrics.costs.cogs).toBe(16)
+    expect(metrics.costs.procurementCost).toBe(30)
+    expect(metrics.costs.grossProfit).toBeCloseTo(84, 2)
+  })
+
+  it('G2: požarni dan D1 in dan kasneje D3 — sale-chain NI na času ognja (prazne skupine)', async () => {
+    const rawD1 = await fetchEodData(b(D1).start, dayEndIncl(D1), IDS.location)
+    expect(rawD1.stockCostGroups).toEqual([])
+
+    const rawD3 = await fetchEodData(b(D3).start, dayEndIncl(D3), IDS.location)
+    // storno (ognjen D3) je šel na prodajni dan D2 — D3 je prazen
+    expect(rawD3.stockCostGroups).toEqual([])
+  })
+
+  it('G2: kanon pariteta čez konzumente — financial (OR-veje) in dashboard furs-shift-cogs vidita ISTO bucketiranje', async () => {
+    // Financial report (konzument 1): stockCostGroups index 7
+    const fin = await fetchFinancialData(b(D2).start, dayEndIncl(D2), b(D2).start, dayEndIncl(D2), IDS.location)
+    const finStock = fin[7] as Parameters<typeof computeStockCosts>[0]
+    const finByType = new Map(finStock.map((g) => [g.type, Number(g._sum.totalCost)]))
+    expect(finByType.get('sale')).toBe(16)
+    expect(finByType.get('return')).toBe(-2)
+    // financial margin: grossProfit = revenue − cogs (writeOff ločeno: abs(write-off)+abs(return) = 2)
+    const costs = computeStockCosts(finStock, 100)
+    expect(costs.cogs).toBe(16)
+    expect(costs.writeOffCost).toBe(2)
+    expect(costs.grossProfit).toBeCloseTo(84, 2)
+
+    // Financial požarni dan D1: sale-chain odsoten (prej bi poklical 23:50 ognjen sale)
+    const finD1 = await fetchFinancialData(b(D1).start, dayEndIncl(D1), b(D1).start, dayEndIncl(D1), IDS.location)
+    expect(finD1[7]).toEqual([])
+
+    // Dashboard furs-shift-cogs (konzument 3): todayCogs 16, marža koherentna
+    const dash = await fetchFursShiftCogs(b(D2).start, b(D3).start, 100, IDS.location)
+    expect(dash.todayCogs).toBe(16)
+    expect(dash.grossProfit).toBeCloseTo(84, 2)
+    expect(dash.grossMargin).toBeCloseTo(84, 2)
   })
 })

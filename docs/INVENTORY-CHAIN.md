@@ -53,7 +53,7 @@ izrecno ne-implementirano (§6).
 | Purchase price | `SupplierPriceHistory` (schema.prisma:2592, Decimal 12,4, append-only) | avtomatsko ob prevzemu (_helpers.ts:325/:380, `unitPrice ≤ 0` skip), ročno price-history POST | recipes `?priceSource=supplier`, reorder enrichment, stats canon | base unit cena | isti tx kot prevzem | `SUPPLIER_PRICE_MANUAL` (ročno) | r130 IT + unit | prisotna samo opt-in (`priceSource=supplier`); privzeti COGS ne bere PH (§5 G8) |
 | Received quantity | `GoodsReceiptItem.quantityAccepted` (+ rejected brez kapacitetnega efekta — R132 amandma :183-188) | receive kanon | GRN list route, invoice match (invoiced > accepted → `variance_qty`) | PO enota | isti Serializable tx | GRN del `PURCHASE_ORDER_RECEIVED` | r132 (9+1 zavrnjeno → zaloga accepted-only) | — |
 | Recipe cost | izračun: `Σ rawFromUsable(qtyPerServing, yield) × InventoryItem.costPerServing` (food-cost route :51-53) | — (izpeljano, ni shranjeno) | food-cost route, Z-report stats (:162-174), recipes route | EUR/servis | — | — | r123, r209 drill | ni menu-item cost polja; cost je vedno živo izpeljan (by design) |
-| COGS | `StockTransaction.totalCost` type=`'sale'` (spot cost ob odvodu) | deduct-recipe (:105), deduct-direct (:103), deduct-added (:77/:154), public/QR/online/delivery poti §3 | dashboard furs-shift-cogs (:49-61), reports/financial (:176-180), reports/eod metrics (:75-76), Z-report | EUR | isti tx kot odvod | StockTx sled | r209 drill (rekonciliacija cogs == Σ sale) | prihodki se bucketirajo na `Order.paidAt`, COGS na `StockTransaction.createdAt` (§5 G2) |
+| COGS | `StockTransaction.totalCost` type=`'sale'` (spot cost ob odvodu) | deduct-recipe (:105), deduct-direct (:103), deduct-added (:77/:154), public/QR/online/delivery poti §3 | dashboard furs-shift-cogs (:49-61), reports/financial (:176-180), reports/eod metrics (:75-76), accounting P&L fallback (journal-generator:661), Z-report | EUR | isti tx kot odvod | StockTx sled | r209 drill (rekonciliacija cogs == Σ sale) | — (G2 zaprta R216: sale-chain COGS bucketiran na `Order.paidAt` — poslovni dan prodaje, ISTI kanon kot prihodki; fallback + ne-naročilni tipi na createdAt, §5) |
 | Margin | izračun: `(price−cost)/price×100` (`computeMarginPercent` price-history.ts:194-199); food-cost % = `cost/(price×(1+vat))×100` (:71) | — | food-cost route, recipes route (supplier variant), menu-engineering klasifikacija (:76-83) | % | — | — | r130 lib | terminologija: izpeljani % brez računovodske klasifikacije (issue §16 zahteva: ne označevati kot „gross margin" brez podpore — UI je označen kot food-cost %/margin %) |
 | Availability | izračun: `computeMenuStockMap` + `effectiveAvailability` (`src/lib/availability/menu-availability.ts:50-181`); statusi ok/low/out | — (izpeljano) | menu-stock route, public/availability, kiosk/QR payloadi, POS check pre-write (post-handler.ts:259) | servisi (RAW-yield-aware) | — (read-only) | — | r124, lib/menu-availability, r161 (last-2-units), r209 drill (409 + attempt vrstica), R211: +5 G1 location testov + r211-menu-stock-location | map ni location-scoped → ZAPRTO R211 (§5 G1: locationId na direktni poti mirror deduct-direct; receptna pot fiksna mirror deduct-recipe); pre-write check-availability direct branch ostane first-wins (warning-only, write CAS zaščiten) |
 
@@ -107,7 +107,7 @@ neodvisno od plačila; rekonciliacija obeh poteká na poročilni ravni (§4).
 
 ## 4. Živi verižni dokazi (issue #152 §5/§6/§19/§21/§22)
 
-**`tests/integration/r209-inventory-chain-drill.test.ts`** (21 testov, prava
+**`tests/integration/r209-inventory-chain-drill.test.ts`** (24 testov, prava
 PGlite + pravi route handlerji; requireAuth mockan na meji — vzorec
 r128/r132/r151/r207):
 
@@ -141,6 +141,14 @@ r128/r132/r151/r207):
   (prej NI bilo audita/ključavnic/FEFO na batch poti); mixed batch — skip
   (999 > 20) → attempt StockTx qty 0 + „Premalo zaloge" (P3 semantika
   nespremenjena), skip BREZ alokacije in BREZ audita (skip NI odpis).
+- **R216 G2 (business-day bucketiranje)**: naročilo ognjeno 23:50 (D1),
+  plačano 00:10 (D2) → sale COGS 10.00 na poslovni dan prodaje D2 (prej D1 —
+  marža razdeljena med dneva); storno (return −2.00) ognjen dan kasneje (D3
+  01:00) → sledi prodajnemu dnevu D2 (ne svojemu času ognja); neplačano
+  naročilo (5.00, paidAt null) + sale brez orderId (1.00) → fallback createdAt
+  (BIT-FOR-BIT); prevzem (30.00) ostane na času ognja; marža koherentna čez
+  vse konzumente (EOD grossProfit 84 = financial 84 = dashboard 84, revenue
+  100 − cogs 16); D1/D3 okna prazna (brez dvojnega štetja, brez izgube vrstic).
 - **VERIGA D (§12/§22-D)**: odpad → write-off 6.00 + WasteRecord snapshot +
   audit; replay idempotencyKey → ISTA vrstica (replay: true), EN efekt;
   reverse → kompenzacijski `return` s snapshot ceno; double reverse → 409.
@@ -163,7 +171,7 @@ r128/r132/r151/r207):
 | # | vrzel | dokaz | vpliv | status |
 |---|---|---|---|---|
 | G1 | menu-stock availability read NI location-scoped | `inventory/menu-stock/route.ts:26` kliče `computeMenuStockMap()` brez scope-a; `InventoryItem @@unique([menuItemId, locationId])` (schema.prisma:1224) → multi-lokacijski tenant lahko vidi napačno lokacijo | kozmetično na POS mapi — blokada na write strani ostane avtoritativna (pogojni decrement) | ODPRTA — kandidat za #152 korak 2 |
-| G2 | business-day bucketiranje: prihodki na `Order.paidAt` (LJ poslovni dan), COGS/vhodi na `StockTransaction.createdAt` (čas ognja) | `reports/financial/_helpers-queries.ts:112-114` vs :130; `reports/eod/_helpers/data-fetch.ts:35` vs :88; `dashboard/_helpers/furs-shift-cogs.ts:53` | naročilo ob 23:50 / plačilo ob 00:10 lahko meša dneva v bruto marži | ODPRTA — usklajeno z #148 (isti LJ kanon); kandidat za #152 korak 2 |
+| G2 | business-day bucketiranje: prihodki na `Order.paidAt` (LJ poslovni dan), COGS/vhodi na `StockTransaction.createdAt` (čas ognja) | `reports/financial/_helpers-queries.ts` (stockWhere), `reports/eod/_helpers/data-fetch.ts` (poizvedba 10), `dashboard/_helpers/furs-shift-cogs.ts`, `lib/accounting/journal-generator.ts` (P&L COGS fallback) | naročilo ob 23:50 / plačilo ob 00:10 lahko meša dneva v bruto marži | **ZAPRTA R216** — kanon pariteta, usklajeno z #148 ljubljanaDayBounds: relacija `StockTransaction.order` (schema + 0026_stocktx_order_relation — sirote prečiščene, FK ON DELETE SET NULL); sale-chain ('sale' + 'return' — vsi pisatelji nastavijo orderId v isti tx: deduct-recipe/direct/added, public/online-order, glovo/wolt, void-return) bucketiran na `order.paidAt` (ISTI kanon kot prihodki) prek skupnega helperja `src/lib/reports/sale-cogs-bucketing.ts` (`buildSaleCogsWindowFilter`: veja A order.paidAt okno XOR veja B fallback createdAt z unpaid/no-order guardom — brez dvojnega štetja in brez izgube vrstic); ne-naročilni tipi (procurement/write-off/adjustment/batch-*) ostanejo na createdAt (BIT-FOR-BIT); scope `inventoryItem.locationId` ostane top-level ključ (R84-1/R85 pini ohranjeni); dokaz: r209 drill G2 (3 IT — cross-midnight 23:50/00:10 marža 100−16 koherentna, storno naslednji dan sledi prodajnemu dnevu, D1/D3 prazna okna) + r216-business-day-cogs unit (11 — helper + 4 konzumenta where-pini) |
 | G3 | QR/online/Glovo/Wolt odvodni tokovi brez advisory ključavnic (pre-R182) | order-calculations.ts:121, deduct-inventory.ts:45, glovo-inventory.ts:42 | kanon izjema — zaščita ostane pogojni decrement + tx; brez serializacije čez pisci | ODPRTA — nizka prioriteta (public tokovi imajo lastne CAS zaščite) |
 | G4 | batch-PUT adjust brez ključavnic/batcha/audita | inventory/adjust/route.ts:142-217 (komentar :124-126) | dokumentirana izjema; posamezen artikel še vedno pogojno dekrementiran | **ZAPRTA R214** — kanon pariteta: `acquireInvStockLocks` :166 (R182 vesolj — sort+dedup, receive-kanon vzorec: vse ključavnice PRED prvo mutacijo = deadlock-free ordering), Serializable tx (TX_OPTS :19-22 = stock-mutations pariteta), FEFO batch razknjižba `recordBatchConsumption` :267 per uspešen odpis (sale-safety: napaka alokacije ne podre odpisa), `createAuditLogsBatch` :283 (INVENTORY_ADJUST per uspešen odpis — tx-fresh previousQty/newQty/itemName, isti details shape kot POST :92-105, PCI hash veriga; skip artikli se ne revidirajo kot odpis — poskus viden v StockTx POSKUS vrstici :214), scoped re-read :235 (prej findUnique po raw id), P2002/P2034 → 409 :305-313 (pariteta s POST :117-119); P3 atomarni vzorec (updateMany gte :198) OSTANE ključni CAS, skipped semantika nespremenjena; dokaz: r209 drill G4 (2 IT — FEFO LOT-G4-B 3 + LOT-G4-A 1, mixed skip brez alokacije/audita) + r214-batch-adjust unit (6) + inventory-adjust P3 (4) |
 | G5 | DELETE `inventory/[id]` brez ključavnice/audita | inventory/[id]/_helpers.ts:61-86 | redka operacija (soft-delete); StockTx Restrict ohranja ledger | ODPRTA |
@@ -195,8 +203,9 @@ r128/r132/r151/r207):
 
 ## 7. Pokritost testov (repo dokazi)
 
-- **IT (prava PGlite)**: `r209-inventory-chain-drill` (21 — žive verige §4,
-  vključno R212 G7 replay dokaz + R214 G4 batch-PUT FEFO/audit dokaz),
+- **IT (prava PGlite)**: `r209-inventory-chain-drill` (24 — žive verige §4,
+  vključno R212 G7 replay dokaz + R214 G4 batch-PUT FEFO/audit dokaz + R216 G2
+  business-day bucketiranje dokaz — cross-midnight marža koherentna),
   `r130-supplier-price-history`, `r129-reorder-to-po`,
   `r131-supplier-catalog-drill`, `r132-recon-drill` (three-way match +
   „price history NI prepisana").
@@ -207,7 +216,8 @@ r128/r132/r151/r207):
   canon, r161 last-2-units, r130/r131 price history + pack size, r129 reorder
   canon, r211 menu-stock location, r212 receive idempotency (key passthrough
   + replay wire), r214 batch-PUT adjust kanon pariteta (ključavnice +
-  Serializable + FEFO + audit + scoped re-read + 409), lib/yield +
+  Serializable + FEFO + audit + scoped re-read + 409), r216 business-day COGS
+  bucketiranje (helper + 4 konzumenta where-pini), lib/yield +
   lib/menu-availability.
 - **E2E**: core-flow FLOW-13 (sale tx + zmanjšana zaloga po golden pathu),
   danes-cockpit menu-stock error stanja, observability DB health

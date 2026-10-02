@@ -650,12 +650,18 @@ export async function generateProfitLoss(dateFrom?: Date, dateTo?: Date, locatio
   // To je fallback — avtomatska razknjižba zaloge ob prodaji ustvari StockTransaction z
   // totalCost poljem, ampak ne ustvari vedno journal entry. Zato direktno agregiramo.
   if (sections.cogs.total === 0) {
+    // G2 R216 (#152 korak 2): sale COGS bucketiran na LJ poslovni dan prodaje
+    // (order.paidAt — ISTI kanon kot prihodki), fallback (brez plačanega
+    // naročila) na času ognja (createdAt) = prejšnje vedenje.
     const stockWhere: Record<string, unknown> = { type: 'sale' }
     if (dateFrom || dateTo) {
       const dateFilter: Record<string, Date> = {}
       if (dateFrom) dateFilter.gte = dateFrom
       if (dateTo) dateFilter.lte = dateTo
-      stockWhere.createdAt = dateFilter
+      stockWhere.OR = [
+        { order: { paidAt: dateFilter } },
+        { createdAt: dateFilter, OR: [{ orderId: null }, { order: { paidAt: null } }] },
+      ]
     }
 
     const cogsResult = await db.stockTransaction.aggregate({

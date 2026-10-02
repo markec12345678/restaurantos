@@ -50,7 +50,19 @@ export async function fetchFursShiftCogs(
         // FIX R85-H1: + tenant scope — StockTransaction nima lastnega locationId
         // (R84 financial vzorec): scope prek inventoryItem.locationId. Prej je
         // todayCogs zajel strosek prodaje VSEH lokacij.
-        where: { createdAt: { gte: today, lt: tomorrow }, type: 'sale', ...(locationId ? { inventoryItem: { locationId } } : {}) },
+        // G2 R216 (#152 korak 2): sale COGS bucketiran na LJ poslovni dan
+        // prodaje (order.paidAt — ISTI kanon kot todayRevenue prihodek, ki
+        // prihaja iz paidAt okna), fallback (brez plačanega naročila) na času
+        // ognja (createdAt) = prejšnje vedenje. Naročilo ob 23:50 / plačilo ob
+        // 00:10 ne razdeli več brute marže med dneva.
+        where: {
+          type: 'sale',
+          OR: [
+            { order: { paidAt: { gte: today, lt: tomorrow } } },
+            { createdAt: { gte: today, lt: tomorrow }, OR: [{ orderId: null }, { order: { paidAt: null } }] },
+          ],
+          ...(locationId ? { inventoryItem: { locationId } } : {}),
+        },
         select: { totalCost: true },
       }).catch(() => []),
     ])

@@ -711,6 +711,9 @@ model Order {
   checks          Check[]
   receipt         Receipt[]
   kotDocuments    KotDocument[]   // URY Mosaic-style KOT lifecycle
+  // R216/G2 (#152 korak 2): reverse za StockTransaction.order — sale-chain
+  // COGS bucketiranje na poslovni dan prodaje (order.paidAt)
+  stockTransactions StockTransaction[] @relation("StockTransactionOrder")
   // --- Ghost kitchen: virtual brand ---
   virtualBrandId  String?
   virtualBrand    VirtualBrand? @relation(fields: [virtualBrandId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -1246,6 +1249,12 @@ model StockTransaction {
   employeeId      String?
   employee        Employee?     @relation("StockTransactionEmployee", fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   orderId         String?
+  // R216/G2 (#152 korak 2): prava relacija do Order — sale-chain COGS
+  // ('sale' + 'return') se bucketira na LJ poslovni dan prodaje (order.paidAt,
+  // ISTI kanon kot prihodki) namesto na čas ognja (createdAt). Vsi sale pisatelji
+  // (deduct-recipe/direct/added, public/online-order, glovo/wolt, void-return)
+  // že nastavijo orderId v isti tx; 0026 migracija prečisti sirote (SetNull).
+  order           Order?        @relation("StockTransactionOrder", fields: [orderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   createdAt       DateTime      @default(now())
 
   @@index([inventoryItemId])

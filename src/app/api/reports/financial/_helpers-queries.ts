@@ -3,6 +3,7 @@
 
 import { db } from '@/lib/db'
 import { ljubljanaDayBounds, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
+import { buildSaleCogsWindowFilter, buildOtherStockTypesWindowFilter } from '@/lib/reports/sale-cogs-bucketing'
 
 // R158-4 (R159-b): 'YYYY-MM-DD' + n dni (čisti koledarski add/sub po vzorcu
 // briefing/_helpers addDaysToYmd — DST-varno, brez start-24h).
@@ -109,8 +110,16 @@ export async function fetchFinancialData(
 ) {
   // Tenant filterji (pogojno — super-admin = globalno)
   const orderWhereBase = { ...(locationId ? { locationId } : {}) }
+  // G2 R216 (#152 korak 2): sale-chain COGS ('sale'+'return') bucketiran na
+  // LJ poslovni dan prodaje (order.paidAt — ISTI kanon kot prihodki zgoraj),
+  // fallback (brez plačanega naročila) + ne-naročilni tipi na času ognja
+  // (createdAt) = prejšnje vedenje. inventoryItem.locationId scope OSTANE
+  // top-level ključ (R84-1 pin: implicitni AND z OR vejami).
   const stockWhere = {
-    createdAt: { gte: startDate, lte: endDate },
+    OR: [
+      ...buildSaleCogsWindowFilter(startDate, endDate),
+      buildOtherStockTypesWindowFilter(startDate, endDate),
+    ],
     ...(locationId ? { inventoryItem: { locationId } } : {}),
   }
   const shiftWhere = {

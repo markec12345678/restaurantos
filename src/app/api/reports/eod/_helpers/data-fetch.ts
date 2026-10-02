@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import type { DecimalLike } from '@/lib/decimal'
+import { buildSaleCogsWindowFilter, buildOtherStockTypesWindowFilter } from '@/lib/reports/sale-cogs-bucketing'
 
 // ─── Tipi za EOD metrike ───
 export interface VatGroup { vatRate: DecimalLike; _sum: { vatAmount: DecimalLike } }
@@ -81,11 +82,19 @@ export async function fetchEodData(dayStart: Date, dayEnd: Date, locationId: str
     // 9. PO URAH
     db.order.findMany({ where: paidOrderWhere, select: { paidAt: true, createdAt: true, total: true } }),
     // 10. STROŠKI — R84: vezava prek relacije inventoryItem.locationId (model
-    // nima lastnega locationId stolpca)
+    //     nima lastnega locationId stolpca)
+    //     G2 R216 (#152 korak 2): sale-chain ('sale'+'return') bucketiran na LJ
+    //     poslovni dan prodaje (order.paidAt — ISTI kanon kot prihodki
+    //     paidOrderWhere zgoraj), fallback + ne-naročilni tipi na času ognja
+    //     (createdAt) = prejšnje vedenje. inventoryItem scope OSTANE top-level
+    //     (R84-1 pin: implicitni AND z OR vejami).
     db.stockTransaction.groupBy({
       by: ['type'],
       where: {
-        createdAt: { gte: dayStart, lte: dayEnd },
+        OR: [
+          ...buildSaleCogsWindowFilter(dayStart, dayEnd),
+          buildOtherStockTypesWindowFilter(dayStart, dayEnd),
+        ],
         ...(locationId ? { inventoryItem: { locationId } } : {}),
       },
       _sum: { totalCost: true },
