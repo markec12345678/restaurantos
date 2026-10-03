@@ -56,7 +56,11 @@ RUN bun install --frozen-lockfile --production --ignore-scripts
 FROM node:26-alpine AS runner
 WORKDIR /app
 # libc6-compat: Prisma engine na alpine; tzdata: TZ=Europe/Ljubljana
-RUN apk add --no-cache libc6-compat tzdata
+# openssl (FIX R229, katalog napak A5): FURS + CIS fiskalizacija kličeta
+# openssl CLI prek execFileSync (pkcs12 ekstrakcija privatnega ključa +
+# cert identiteta za JWS header) — brez njega fiskalizacija v Docker
+# deployju ne more naložiti certifikata (tihi null/napaka).
+RUN apk add --no-cache libc6-compat tzdata openssl
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

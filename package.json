@@ -5,7 +5,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "packageManager": "bun@1.3.14",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "//": "P1-deps: edini package manager je Bun (CI + start script). package-lock.json je ODSTRANJEN — npm/yarn/pnpm lockfile-i so prepovedani, da CI --frozen-lockfile ostane deterministicen.",
   "scripts": {

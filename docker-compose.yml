@@ -24,7 +24,9 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      # FIX (R229, katalog napak C4): vezava na loopback — baza NI dosegljiva
+      # z interneta (prej javna vrata + default geslo "changeme").
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U restaurantos"]
       interval: 10s
@@ -37,7 +39,9 @@ services:
     container_name: restaurantos-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      # FIX (R229, katalog napak C4): vezava na loopback — Redis (brez gesla)
+      # NI dosegljiv z interneta.
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:

@@ -130,7 +130,10 @@ describe('R166 T1-T2: verifyInvoiceWithFURS sim veja (verify-invoice :131-157)',
       expect(result.isSimulation).toBe(true)
       expect(result.error).toContain('račun NI davčno overjen')
       // F5: sim EOR je determinističen UUID-oblikovan niz iz (zoi, sekunda)
-      expect(result.eor).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) // generateSimulatedEOR vrača UPPERCASE
+      // FIX (R229, katalog A4): generateSimulatedEOR vrača LOWERCASE UUID
+      // (uradni FURS primer: 56dcaf93-933a-497d-b864-40ba1e8f4fa2)
+      expect(result.eor).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+      expect(result.eor).toBe(result.eor.toLowerCase())
       expect(result.eor).toBe(generateSimulatedEOR('ZOI-TEST', result.verifiedAt))
       expect(result.verifiedAt).toBeInstanceOf(Date)
       expect(result.environment).toBe('test')

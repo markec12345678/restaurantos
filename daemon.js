@@ -16,7 +16,11 @@ function startServer() {
   
   const child = spawn(process.execPath, [SERVER_SCRIPT], {
     cwd: __dirname,
-    env: { ...process.env, NODE_ENV: 'development' },
+    // FIX (R229, katalog napak B1): prej vsiljen NODE_ENV: 'development' —
+    // produkcijski zagon prek daemon-a je tekel v dev načinu in FURS boot
+    // guard (server.js) se NIKOLI ni sprožil (tihi ne-overjeni računi, ZDDV-1).
+    // Ohrani okolje klicatelja; privzeto produkcija.
+    env: { ...process.env, NODE_ENV: process.env.NODE_ENV || 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
   });

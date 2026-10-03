@@ -1,3 +1,9 @@
+// ⚠️ SANDBOX-ONLY — NE zaganjaj proti produkcijski podatkovni bazi! (R229, katalog napak C5)
+// Ta skripta seje testnega admina (PIN 1111 + hardkodiran sandbox HMAC secret)
+// v PGlite podatkovni dir iz PGLITE_DATA_DIR (default /tmp/pglite-data).
+// Namen: E2E/dev sandbox (klicalec: scripts/dev-recover.sh).
+// Produkcijska postavitev seje admina prek /api/setup/init z unikatnim močnim
+// PIN-om ob prvi postavitvi — NE s tem fajlom.
 import { PGlite } from '@electric-sql/pglite'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
