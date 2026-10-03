@@ -76,6 +76,17 @@ test('r226 auth setup: prijava test-admin (PIN 1111) → storageState za offline
   await enterPinViaKeypad(page, NULL_LOCATION_ADMIN_PIN)
   await expectLoggedInUi(page)
 
+  // WARM OrderPanel chunk (R227 lekcija, CI run 37141374865 @ b0d95d76):
+  // r226 testi so edini, ki odpirajo OrderPanel UI (ostali spec-i grejo prek
+  // API-ja) — težki lazy chunk se sredi CI 257-testnega runa kompajlira pod
+  // maksimalnim pritiskom (vzporedno tiskanje + turbopack eviction) →
+  // procesna nestabilnost → transient 401 → DanesCockpit UNAUTHORIZED (page
+  // snapshot dokaz; NI chunk-404). Setup ga zgradi ENKRAT brez tekmovalnosti
+  // — A/B/C kasneje dobijo že zgrajen chunk in mount je brez compile stressa.
+  // Marker: OrderTypeBar radiogroup 'Vrsta naročila' (vedno v OrderPanel).
+  await page.locator('button[aria-label="Prodaja"]').click()
+  await expect(page.getByRole('radiogroup', { name: 'Vrsta naročila' })).toBeVisible({ timeout: 60_000 })
+
   // Seja za A/B/C scenarije (chromium dependencies: ['setup'])
   await page.context().storageState({ path: R226_STORAGE_STATE_PATH })
 })

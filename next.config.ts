@@ -50,9 +50,19 @@ const nextConfig: NextConfig = {
   // za proces) je Turbopack dev compile velikih API-rut ob prvi kompilaciji
   // sprožil OOM killer (next-server ubit pri RSS 1.7 GB). 'full' vsili agresivno
   // izpodrivanje modulov iz pomnilnika med kompilacijo → nižji vrh RSS.
-  experimental: {
-    turbopackMemoryEviction: 'full',
-  },
+  // R227 E2E lekcija (CI run 37141374865 @ b0d95d76 — E2E FAILURE 250/3f/4s):
+  // v dolgem E2E dev runu (257 testov, ~10 min next dev + turbopack) 'full'
+  // eviction sproži modul-reloade (2× fresh modul-load 'Naloženih 9 sej iz
+  // SQLite' v job logu) → transient 401 ob r226 loadu → DanesCockpit
+  // UNAUTHORIZED page-state → POS UI ni mountan (page snapshot dokaz —
+  // NI ErrorBoundary/chunk-404; lokalna turbopack dev simulatorja). Prijava
+  // (in-memory session Map) je instancni pomnilnik — modul-reload ga izprazni
+  // in vsaka potratna 401 bi lahko zadelala prijavljenega uporabnika.
+  // E2E_MODE=1 (e2e.yml) ga onemogoči — višji RSS vrh je sprejemljiv na
+  // 7 GB runnerju; Vercel/lokalni build obdržita 'full'.
+  ...(process.env.E2E_MODE === '1'
+    ? {}
+    : { experimental: { turbopackMemoryEviction: 'full' as const } }),
   // Verzija aplikacije iz package.json — inline ob buildu (health endpoint).
   env: {
     APP_VERSION: pkg.version,

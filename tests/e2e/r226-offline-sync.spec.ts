@@ -37,8 +37,26 @@
 //     (401) + POST prijava (PIN 1111)                    = 2
 //   A/B/C: storageState → GET /api/auth validacija seje  = 1 vsak
 //   Skupaj 5/5 = TOČNO. CI (LOGIN_RATE_LIMIT_MAX=200, e2e.yml) daleč nad
-//   mejo. Brez setup fajla (izoliran zagon brez dependency) → vse skip
+//   mejo — tudi R227 auth-resilience (ensureLoggedIn re-PIN ob transient
+//   401, maks. +1 POST na scenarij) je v CI budgetu varno; LOKALNO (privzeti
+//   5/15min) re-PIN pot samo pri setup+A toku (2+1+1 fallback = 4/5).
+//   Brez setup fajla (izoliran zagon brez dependency) → vse skip
 //   (existsSync guard, device-tab C vzorec).
+//
+// R227 LEKCIJA (CI run 37141374865 @ b0d95d76 — E2E FAILURE 250/3f/4s):
+// page snapshot A faila je pokazal DANES UNAUTHORIZED page-state
+// (DanesCockpit #148: katerikoli API 401 = 'Seja je potekla') v LANDING
+// layoutu brez POS UI — NI ErrorBoundary/chunk-404 (ta simptoma sta bila
+// lokalna turbopack dev simulatorja). Merjeno: next dev + turbopack 'full'
+// memory eviction → 2× fresh modul-load ('Naloženih 9 sej iz SQLite'
+// @ 17:47:59/17:48:07 v job logu) → transient 401 ob r226 loadu → POS UI
+// se ne mounta → A 'Prodaja' gumb odsoten, B/C #main-content odsoten.
+// NI auth revokacije (AUTH log čist do 17:47:42, LRU evicti šele PO failih).
+// Fix (3 sloja): (1) E2E_MODE=1 off eviction (e2e.yml+next.config.ts —
+// procesna stabilnost), (2) warm OrderPanel chunk v setupu (manj compile
+// pritiska sredi runa), (3) ensureLoggedIn auth-resilience (reload za
+// transient 401 → re-PIN za mrtvo sejo — simptom se pozdravi neodvisno od
+// mikro-mehanizma 401).
 //
 // POST /api/orders je MOCKAN (page.route) — scenariji #150 testirajo
 // page-side sync pot in IndexedDB končno stanje (server kontrakt je že
@@ -64,6 +82,9 @@ const META_LAST_SYNC_RESULT = 'lastSyncResult'
 const STORAGE_STATE_PATH = join(tmpdir(), 'restaurantos-r226-offline-sync.json')
 // Seja pripravljena v tests/e2e/r226.setup.ts (setup projekt, PIN 1111)
 const MOCK_ORDER_ID = 'e2e-r226-synced-order'
+// Re-PIN (ensureLoggedIn fallback): ISTI seed admin kot setup (PIN 1111,
+// scripts/e2e-seed-data.mjs — hišni vzorec device-tab.spec.ts)
+const NULL_LOCATION_ADMIN_PIN = '1111'
 
 // ── Helperji (hišni vzorci: device-tab.spec.ts / two-step-login.spec.ts) ──
 
@@ -86,6 +107,36 @@ async function expectLoggedInUi(page: Page): Promise<void> {
   await expect(page.locator('[role="dialog"][aria-label="PIN prijava"]')).toBeHidden()
 }
 
+/** PIN vnesi s KLIKOM keypad tipk (touch pot) in potrdi (4-mestni seed PIN
+ *  potrebuje izrecen klik — auto-submit šele pri 6 stevkah, PIN_MAX_LENGTH;
+ *  enako kot r226.setup.ts). */
+async function enterPinViaKeypad(page: Page, pin: string): Promise<void> {
+  for (const digit of pin) {
+    await page.getByRole('button', { name: `Stevka ${digit}` }).click()
+  }
+  await page.getByRole('button', { name: 'Potrdi PIN' }).click()
+}
+
+/** Auth-resilience (R227, CI run 37141374865 lekcija): transient 401 sredi
+ *  r226 loadu (procesna nestabilnost turbopack eviction — glej header) →
+ *  DanesCockpit UNAUTHORIZED page-state → POS UI se NE mounta. Dvostopenjski
+ *  samozdravitelj: (1) UNAUTHORIZED alert viden → reload (transient — svež
+ *  load obnovi mount), (2) PIN dialog viden → re-PIN (seja res mrtva —
+ *  fail-open tok, isti seed admin kot setup). Nato obvezna expectLoggedInUi
+ *  potrditev (main#main-content + PIN dialog skrit). */
+async function ensureLoggedIn(page: Page): Promise<void> {
+  const unauthorized = page.getByTestId('danes-unauthorized')
+  if (await unauthorized.isVisible().catch(() => false)) {
+    await page.reload()
+    await awaitSetupOverlayGone(page)
+  }
+  const pinDialog = page.locator('[role="dialog"][aria-label="PIN prijava"]')
+  if (await pinDialog.isVisible().catch(() => false)) {
+    await enterPinViaKeypad(page, NULL_LOCATION_ADMIN_PIN)
+  }
+  await expectLoggedInUi(page)
+}
+
 /** SetupRedirect overlay ('Preverjam stanje sistema...', fixed z-50) — mrzel
  *  dev compile /api/setup/status ga lokalno podaljša in bi INTERCEPTAL klike
  *  (actionTimeout klik retry cikli). Počakaj, da mine, preden klikamo.
@@ -100,24 +151,38 @@ async function awaitSetupOverlayGone(page: Page): Promise<void> {
  *  admin/manager like ob vsakem loadu preusmeri na 'danes' (workspace.landing;
  *  activeModule NI persistiran — store partialize), zato modul NI privzeto
  *  mountan. Marker mounta = OrderTypeBar radiogroup (vedno v OrderPanel).
- *  Resilience: dev-only turbopack chunk flake (dynamic OrderPanel import iz
- *  druge strani) občasno ujame ErrorBoundary ('Napaka v POS:orders') —
- *  'Poskusi znova' resetira modul (boundary maxRetries=3); CI standalone
- *  build chunk racea nima. */
+ *  Resilience (R227): CI E2E teče proti next dev + TURBOPACK — 'full'
+ *  memory eviction je lahko onemogočen (E2E_MODE=1), vendar zanka ostane
+ *  kot splošna obramba: dev-only chunk flake (dynamic OrderPanel import)
+ *  občasno ujame ErrorBoundary ('Napaka v POS:orders') — 'Poskusi znova'
+ *  resetira modul (boundary maxRetries=3); po izčrpavih retryah 'Ponastavi
+ *  modul' + reload + ensureLoggedIn (transient 401 / mrtva seja — CI run
+ *  37141374865 lekcija) + nov klik. */
 async function openOrdersModule(page: Page): Promise<void> {
   await page.locator('button[aria-label="Prodaja"]').click()
   const target = page.getByRole('radiogroup', { name: 'Vrsta naročila' })
-  // Zanka (skupaj ~40s + final 20s): pokrije mrzel turbopack compile (~30-60s
-  // lokalno) in nestabilen transient (fallback blik → gumb izgine — vsi klik
-  // z kratkim timeoutom + catch, da zanka vedno napreduje). CI standalone
-  // (statični chunki): prvi isVisible() takoj PASS.
+  // Zanka (skupaj ~50s + final 20s) — CI E2E teče proti next dev + TURBOPACK
+  // (ne standalone!), težki lazy chunki (OrderPanel) lahko 404 ob prvem
+  // zahtevanju — ErrorBoundary 'Poskusi znova' ×3 hitro izčrpa, zato:
+  //   1) med poskusi 2s dihanje (turbopack konča kompajlanje),
+  //   2) po izčrpavih retryah 'Ponastavi modul' (reset) + reload + nov klik
+  //      (chunk je v dev sessionu do takrat zgrajen — setup ga warm-a).
   for (let attempt = 0; attempt < 4; attempt++) {
     if (await target.isVisible().catch(() => false)) return
     await page.getByRole('button', { name: 'Poskusi znova' }).click({ timeout: 3_000 }).catch(() => undefined)
+    await page.waitForTimeout(2_000)
     if (await target.isVisible().catch(() => false)) return
     await page.locator('button[aria-label="Prodaja"]').click({ timeout: 3_000 }).catch(() => undefined)
-    await target.waitFor({ state: 'visible', timeout: 4_000 }).catch(() => undefined)
+    await target.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined)
   }
+  // Exhausted (3/3) → 'Ponastavi modul' + reload — svež page load dobi
+  // v dev sessionu že zgrajen chunk; ensureLoggedIn drži transient 401 /
+  // mrtvo sejo (R227 lekcija — CI run 37141374865)
+  await page.getByRole('button', { name: 'Ponastavi modul' }).click({ timeout: 3_000 }).catch(() => undefined)
+  await page.reload()
+  await awaitSetupOverlayGone(page)
+  await ensureLoggedIn(page)
+  await page.locator('button[aria-label="Prodaja"]').click({ timeout: 5_000 }).catch(() => undefined)
   await expect(target).toBeVisible({ timeout: 20_000 })
 }
 
@@ -312,7 +377,7 @@ test.describe('Offline sync scenariji #150 (R226, epik #157 korak 3)', () => {
     await page.goto('/')
     await dismissCookieBannerIfVisible(page)
     await awaitSetupOverlayGone(page)
-    await expectLoggedInUi(page)
+    await ensureLoggedIn(page)
 
     // Landing gate (R175) → 'danes'; odpri Prodaja (mount sync poti)
     await openOrdersModule(page)
@@ -330,7 +395,7 @@ test.describe('Offline sync scenariji #150 (R226, epik #157 korak 3)', () => {
     // registriran čez reload (page.route persistira čez navigacijo).
     await page.reload()
     await awaitSetupOverlayGone(page)
-    await expectLoggedInUi(page)
+    await ensureLoggedIn(page)
     await openOrdersModule(page)
 
     // Sync pot (mount-polling, BREZ dispatcha — reload pot): točno 1 POST —
@@ -371,10 +436,10 @@ test.describe('Offline sync scenariji #150 (R226, epik #157 korak 3)', () => {
 
       await page.goto('/')
       await awaitSetupOverlayGone(page)
-      await expectLoggedInUi(page)
+      await ensureLoggedIn(page)
       await pageB.goto('/')
       await awaitSetupOverlayGone(pageB)
-      await expectLoggedInUi(pageB)
+      await ensureLoggedIn(pageB)
 
       // Oba zavihka odpreta Prodaja (sync poti mountane — useOrderPanelMutations)
       await openOrdersModule(page)
@@ -419,7 +484,7 @@ test.describe('Offline sync scenariji #150 (R226, epik #157 korak 3)', () => {
       const api = trackOrderApi(page, 0)
       await page.goto('/')
       await awaitSetupOverlayGone(page)
-      await expectLoggedInUi(page)
+      await ensureLoggedIn(page)
       await openOrdersModule(page)
 
       await seedPendingOrder(page, {

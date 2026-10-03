@@ -75,6 +75,15 @@ jobs:
       WEBAUTHN_ENABLED: "true"
       PLAYWRIGHT_BASE_URL: "http://localhost:3000"
       CI: "true"
+      # R227 E2E lekcija (CI run 37141374865 @ b0d95d76 — E2E FAILURE
+      # 250/3f/4s): next dev + turbopack 'full' memory eviction je sredi
+      # dolgega runa (257 testov, ~10 min) sprožil 2× fresh modul-load
+      # ('Naloženih 9 sej iz SQLite' @ 17:47:59/17:48:07 v job logu) →
+      # transient 401 ob r226 loadu → DanesCockpit UNAUTHORIZED page-state →
+      # POS UI ni mountan (page snapshot dokaz — NI ErrorBoundary/chunk-404).
+      # E2E_MODE=1 onemogoči eviction (next.config.ts) — runner 7 GB prenese
+      # višji RSS vrh; setup warm chunk + spec ensureLoggedIn rešujeta simptom.
+      E2E_MODE: "1"
     steps:
       - uses: actions/checkout@v7
 
