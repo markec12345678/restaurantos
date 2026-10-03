@@ -45,11 +45,11 @@ describe('R222 — canonical IndexedDB kontrakt (db-contract.ts)', () => {
     expect(OFFLINE_DB_NAME).not.toBe('restaurantos-offline')
   })
 
-  it('OFFLINE_DB_VERSION je 1 (dvig verzije gre Z migracijsko verigo, #157 korak 2)', () => {
-    expect(OFFLINE_DB_VERSION).toBe(1)
+  it('OFFLINE_DB_VERSION je 2 (R224 #157 korak 2 — dvig z migracijsko verigo izveden: + syncMetadata store)', () => {
+    expect(OFFLINE_DB_VERSION).toBe(2)
   })
 
-  it('OFFLINE_STORE_NAME je pendingOrders (R170: edini store)', () => {
+  it('OFFLINE_STORE_NAME je pendingOrders (R170: edini OPERACIONALNI store; R224 + syncMetadata)', () => {
     expect(OFFLINE_STORE_NAME).toBe('pendingOrders')
   })
 
@@ -62,9 +62,9 @@ describe('R222 — canonical IndexedDB kontrakt (db-contract.ts)', () => {
     expect(SYNC_TRIGGER_MESSAGE_TYPE).toBe('TRIGGER_ORDER_SYNC')
   })
 
-  it('index.ts re-exportira INDEXEDDB_STORES iz kontrakta (enoten vir resnice)', () => {
-    expect(INDEXEDDB_STORES).toEqual(['pendingOrders'])
-    expect(INDEXEDDB_STORE_COUNT).toBe(1)
+  it('index.ts re-exportira INDEXEDDB_STORES iz kontrakta (enoten vir resnice; R224: 2 store-a)', () => {
+    expect(INDEXEDDB_STORES).toEqual(['pendingOrders', 'syncMetadata'])
+    expect(INDEXEDDB_STORE_COUNT).toBe(2)
   })
 
   it('index.ts NE deklarira več lokalnih DB konstant (importira od db-contract)', () => {
@@ -119,10 +119,14 @@ describe('R222 — sw.js trigger kanon (mrtva HTTP/dual-DB mehanika izbrisana)',
 })
 
 describe('R222 — page-side izvajalec (hook + migracija)', () => {
-  it('useOrderPanelMutations posluša TRIGGER_ORDER_SYNC in izvede syncAllOfflineOps', () => {
+  it('useOrderPanelMutations posluša TRIGGER_ORDER_SYNC in izvede sync (R224: koordinirano)', () => {
     expect(hookSrc).toContain("data?.type === 'TRIGGER_ORDER_SYNC'")
     expect(hookSrc).toContain('handleSwTrigger')
-    expect(hookSrc).toContain('syncAllOfflineOps')
+    // R224 (#157 korak 2): samodejni sprožilci tečejo prek runCoordinatedSync
+    // (Web Locks + broadcast) — syncAllOfflineOps ostaja notranji izvajalec
+    // znotraj koordinatorja (index.ts), page ga ne kliče več neposredno.
+    expect(hookSrc).toContain('runCoordinatedSync')
+    expect(indexSrc).toContain('const result = await syncAllOfflineOps(authFetch)')
   })
 
   it('index.ts ima migrateLegacySwDb (copy-verified migracija, ne "delete and hope")', () => {

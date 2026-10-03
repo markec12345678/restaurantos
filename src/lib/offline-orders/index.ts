@@ -23,7 +23,8 @@
 // 'pending', cleanup ni čistil 'processing'). Sedaj isProcessableStatus
 // obravnava zastareli PROCESSING (5 min) kot ponovno obdelavo.
 //
-// INDEXEDDB STORES: točno 1 trgovina — pendingOrders (ta modul).
+// INDEXEDDB STORES: R170–R222 točno 1 trgovina — pendingOrders; R224 (#157
+// korak 2) + 'syncMetadata' (KV zapisnik synca — glej db-contract).
 // ('pendingReceipts' FURS vrsta + modul offline-furs izbrisana R170 —
 // R166-F7 mrtva veriga; FURS retry = server-side outbox processors/furs.ts.)
 //
@@ -55,7 +56,7 @@ import { logger } from '@/lib/logger'
 // R128: kombinirani sync (orders + cancel ops). Cirkularni import je NAMERNO
 // varen: obe moduli kličejo funkcije iz obeh strani šele OB KLICU (hoisted
 // function declarations, brez top-level dostopov do tujih vezav).
-import { syncAllOfflineOps, getPendingCancelOpCount } from './cancel-ops'
+import { syncAllOfflineOps, getPendingCancelOpCount, type SyncAllResult } from './cancel-ops'
 
 export {
   OFFLINE_OP_STATUSES,
@@ -92,7 +93,13 @@ import {
   OFFLINE_DB_NAME as DB_NAME,
   OFFLINE_DB_VERSION as DB_VERSION,
   OFFLINE_STORE_NAME as STORE_NAME,
+  OFFLINE_METADATA_STORE as META_STORE,
   LEGACY_SW_DB_NAME,
+  SYNC_LOCK_NAME,
+  SYNC_BROADCAST_CHANNEL,
+  SYNC_BROADCAST_COMPLETED,
+  META_LAST_SYNC_RESULT,
+  META_LEGACY_MIGRATION,
 } from './db-contract'
 
 const DEVICE_ID_STORAGE_KEY = 'restaurantos-device-id'
@@ -321,6 +328,13 @@ export async function migrateLegacySwDb(): Promise<number> {
       })
     }
     legacyMigrationDone = true
+    // R224 (#157 korak 2): revizijski zapis migracije v syncMetadata store
+    // (best-effort — napaka ne vpliva na izid migracije).
+    void setMeta(META_LEGACY_MIGRATION, {
+      migrated,
+      archived,
+      at: new Date().toISOString(),
+    }).catch(() => false)
     return migrated
   } catch {
     // Best-effort — flag ostane odprt, retry ob naslednjem openDB klicu.
@@ -369,6 +383,12 @@ function openDB(): Promise<IDBDatabase | null> {
           store.createIndex('status', 'status', { unique: false })
           store.createIndex('createdAt', 'createdAt', { unique: false })
           store.createIndex('idempotencyKey', 'idempotencyKey', { unique: false })
+        }
+        // R224 (#157 korak 2): migracijska veriga — v1 baze (in sveže v2)
+        // dobijo metadata store; pendingOrders podatki ostanejo nedotaknjeni
+        // (versionchange transakcija ne uniči obstoječih store-ov).
+        if (!db.objectStoreNames.contains(META_STORE)) {
+          db.createObjectStore(META_STORE, { keyPath: 'key' })
         }
       }
       request.onsuccess = () => {
@@ -448,7 +468,9 @@ function normalizeServerAck(raw: unknown): ServerAck | undefined {
   }
 }
 
-/** Zapiši vnos v queue (idempotentno po `id`). */
+/**
+ * Zapiši vnos v queue (idempotentno po `id`).
+ */
 function putEntry(db: IDBDatabase, entry: PendingOrder): Promise<boolean> {
   return new Promise((resolve) => {
     try {
@@ -507,6 +529,43 @@ export async function putOp(entry: PendingOrder): Promise<boolean> {
   const db = await openDB()
   if (!db) return false
   return putEntry(db, entry)
+}
+
+// ── R224 (#157 korak 2): syncMetadata store — KV zapisnik synca ──
+
+/** Preberi metadata vrednost (null = manjka / store nedosegljiv). */
+export async function getMeta<T = unknown>(key: string): Promise<T | null> {
+  const db = await openDB()
+  if (!db || !db.objectStoreNames.contains(META_STORE)) return null
+  try {
+    const tx = db.transaction(META_STORE, 'readonly')
+    const req = tx.objectStore(META_STORE).get(key)
+    return await new Promise<T | null>((resolve) => {
+      req.onsuccess = () => {
+        const rec = req.result as { value?: T } | undefined
+        resolve(rec ? (rec.value as T) : null)
+      }
+      req.onerror = () => resolve(null)
+    })
+  } catch {
+    return null
+  }
+}
+
+/** Zapiši metadata vrednost (tolerantno — false = store nedosegljiv). */
+export async function setMeta(key: string, value: unknown): Promise<boolean> {
+  const db = await openDB()
+  if (!db || !db.objectStoreNames.contains(META_STORE)) return false
+  try {
+    const tx = db.transaction(META_STORE, 'readwrite')
+    tx.objectStore(META_STORE).put({ key, value })
+    return await new Promise<boolean>((resolve) => {
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => resolve(false)
+    })
+  } catch {
+    return false
+  }
 }
 
 /** Preberi VSE vnose (normalizirane) — vključno z ne-obdelovalnimi statusi. */
@@ -924,6 +983,143 @@ export async function syncPendingOrders(
   return { processed: pending.length, succeeded, failed, conflicts, authExpired }
 }
 
+// ── R224 (#157 korak 2): več-zavihkova koordinacija synca ──
+// Prej: N odprtih zavihkov = N vzporednih syncAllOfflineOps (polling 5s +
+// SW trigger pošlje VSEM klientom) — dvojni POST-i so sicer pokriti z
+// idempotencyKey (strežniški dedup), a vsak zavihek je zapisoval svoj
+// PROCESSING/status in dvigoval lasten toast. Zdaj: Web Locks (izključni
+// lock, ifAvailable) drži izvajanje na TOČNO ENEM zavihku; BroadcastChannel
+// obvesti ostale o izidu (query invalidacija, brez toastov). Brez Web Locks
+// (starejši brskalniki/testi) se sync izvede direktno — idempotencyKey
+// ostaja strežniško varovalo.
+
+/** Minimalna oblika LockManager za koordinacijo (testi/starejši brskalniki). */
+interface LockManagerLike {
+  request?<R>(
+    name: string,
+    options: { ifAvailable?: boolean },
+    callback: (lock: unknown | null) => Promise<R>,
+  ): Promise<R>
+}
+
+/** Izid koordiniranega synca — `skipped: true` = druga zavihka je že izvedla. */
+export interface CoordinatedSyncResult extends SyncAllResult {
+  skipped: boolean
+}
+
+/** Zero-result za `skipped` primer (lock je držala druga zavihka). */
+const SKIPPED_SYNC_RESULT: CoordinatedSyncResult = {
+  orders: { processed: 0, succeeded: 0, failed: 0, conflicts: 0, authExpired: false },
+  cancels: { processed: 0, applied: 0, duplicates: 0, rejected: 0, retried: 0, networkFailed: 0, authExpired: false },
+  succeeded: 0,
+  conflicts: 0,
+  authExpired: false,
+  skipped: true,
+}
+
+/** Broadcast izida synca ostalim zavihkom (best-effort, brez odvisnosti). */
+export function broadcastSyncResult(result: SyncAllResult): void {
+  if (typeof BroadcastChannel === 'undefined') return
+  try {
+    const bc = new BroadcastChannel(SYNC_BROADCAST_CHANNEL)
+    bc.postMessage({
+      type: SYNC_BROADCAST_COMPLETED,
+      succeeded: result.succeeded,
+      conflicts: result.conflicts,
+      authExpired: result.authExpired,
+      at: Date.now(),
+      deviceId: getDeviceId(),
+    })
+    bc.close()
+  } catch {
+    // BroadcastChannel ni na voljo / pošiljanje ni uspelo — best-effort
+  }
+}
+
+/** Sporočilo prek BroadcastChannel (subscribeSyncBroadcast handler vhod). */
+export interface SyncBroadcastMessage {
+  type: typeof SYNC_BROADCAST_COMPLETED
+  succeeded: number
+  conflicts: number
+  authExpired: boolean
+  at: number
+  deviceId: string
+}
+
+/**
+ * Poslušaj izid synca IZ DRUGE zavihka. Vrne unsubscribe; okolja brez
+ * BroadcastChannel vrnejo no-op (degradacija je tiha — polling ostaja).
+ */
+export function subscribeSyncBroadcast(
+  handler: (message: SyncBroadcastMessage) => void,
+): () => void {
+  if (typeof BroadcastChannel === 'undefined') return () => undefined
+  try {
+    const bc = new BroadcastChannel(SYNC_BROADCAST_CHANNEL)
+    bc.onmessage = (event: MessageEvent) => {
+      const data = event.data as Partial<SyncBroadcastMessage> | null
+      if (data?.type === SYNC_BROADCAST_COMPLETED) {
+        handler({
+          type: SYNC_BROADCAST_COMPLETED,
+          succeeded: Number(data.succeeded ?? 0),
+          conflicts: Number(data.conflicts ?? 0),
+          authExpired: data.authExpired === true,
+          at: Number(data.at ?? 0),
+          deviceId: typeof data.deviceId === 'string' ? data.deviceId : 'dev-unknown',
+        })
+      }
+    }
+    return () => {
+      try { bc.close() } catch { /* že zaprt */ }
+    }
+  } catch {
+    return () => undefined
+  }
+}
+
+/**
+ * Koordiniran sync — EDINA vstopna točka za samodejne sprožilce
+ * (polling, 'online' event, SW TRIGGER_ORDER_SYNC). Ročni retry iz
+ * preglednega panela (syncSingleOrder) ostaja neposreden — uporabnikova
+ * akcija na enem vnosu ne tekače z ostalimi zavihki.
+ *
+ * 1. Web Locks (ifAvailable) — lock drži samo ENA zavihka; ostale dobijo
+ *    `skipped: true` brez HTTP klicev.
+ * 2. Uspešen izid se zapiše v syncMetadata (META_LAST_SYNC_RESULT) in
+ *    sporoči ostalim zavihkom (broadcastSyncResult).
+ */
+export async function runCoordinatedSync(
+  authFetch: (url: string, options: RequestInit) => Promise<Response>,
+): Promise<CoordinatedSyncResult> {
+  const locks = typeof navigator !== 'undefined'
+    ? (navigator as Navigator & { locks?: LockManagerLike }).locks
+    : undefined
+
+  const execute = async (): Promise<CoordinatedSyncResult> => {
+    const result = await syncAllOfflineOps(authFetch)
+    // Zapisnik synca (best-effort — napaka ne vpliva na izid)
+    void setMeta(META_LAST_SYNC_RESULT, {
+      succeeded: result.succeeded,
+      conflicts: result.conflicts,
+      authExpired: result.authExpired,
+      processed: result.orders.processed + result.cancels.processed,
+      at: Date.now(),
+    }).catch(() => false)
+    broadcastSyncResult(result)
+    return { ...result, skipped: false }
+  }
+
+  if (locks?.request) {
+    return locks.request(SYNC_LOCK_NAME, { ifAvailable: true }, async (lock) => {
+      if (!lock) return SKIPPED_SYNC_RESULT
+      return execute()
+    })
+  }
+
+  // Degradacija: brez Web Locks — direkten sync (idempotencyKey = varovalo)
+  return execute()
+}
+
 /**
  * Registriraj Background Sync za avtomatski retry pošiljanja naročil.
  * Browser bo sprožil 'sync' event v Service Workerju ob vzpostavitvi povezave.
@@ -970,7 +1166,9 @@ export function startSyncPolling(
       const [pending, pendingCancels] = await Promise.all([getPendingCount(), getPendingCancelOpCount()])
       if (pending + pendingCancels > 0) {
         logger.debug('OfflineQueue', `Polling: ${pending} orders + ${pendingCancels} cancel ops to sync`)
-        await syncAllOfflineOps(authFetch)
+        // R224 (#157 korak 2): koordinirano — ena zavihka izvede, ostale
+        // preskočijo (Web Locks); brez lock podpore direktno (idempotencyKey)
+        await runCoordinatedSync(authFetch)
       }
     }
     if (running) {

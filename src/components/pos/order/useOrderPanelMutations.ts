@@ -14,6 +14,7 @@ import {
   startSyncPolling,
   getPendingCount,
   getPendingCancelOpCount,
+  subscribeSyncBroadcast,
 } from '@/lib/offline-orders'
 import { logger } from '@/lib/logger'
 
@@ -50,10 +51,14 @@ export function useOrderPanelMutations() {
 
     // Sync ko pride online
     // R128: kombinirani sync (order.create + order.cancel prek /api/device-sync)
+    // R224 (#157 korak 2): koordinirano — Web Locks poskrbi, da izvede TOČNO
+    // ENA zavihka (prej: vsak zavihek lasten sync — dvojni toasti/POST-i);
+    // `skipped` = lock je držala druga zavihka, tiho se predaja.
     const handleOnline = () => {
       logger.info('OfflineQueue', 'Network restored — syncing pending offline ops')
-      import('@/lib/offline-orders').then(({ syncAllOfflineOps }) => {
-        syncAllOfflineOps(authFetch).then(result => {
+      import('@/lib/offline-orders').then(({ runCoordinatedSync }) => {
+        runCoordinatedSync(authFetch).then(result => {
+          if (result.skipped) return // druga zavihka je že sinhronizirala (broadcast osveži cache)
           if (result.succeeded > 0) {
             toast.success(`${result.succeeded} offline operacij sinhroniziranih`)
             queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
@@ -119,6 +124,19 @@ export function useOrderPanelMutations() {
         navigator.serviceWorker.removeEventListener('message', handleSwMessage)
       }
     }
+  }, [queryClient])
+
+  // R224 (#157 korak 2): cross-tab odmev — druga zavihka je izvedla sync
+  // (BroadcastChannel OFFLINE_SYNC_COMPLETED) → ta zavihka osveži query
+  // cache. Brez toastov — izvorna zavihka že obvesti uporabnika; brez
+  // invalidacije pa bi ostale zavihke prikazovale zastarel orders seznam.
+  useEffect(() => {
+    const unsubscribe = subscribeSyncBroadcast((message) => {
+      if (message.succeeded > 0) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
+      }
+    })
+    return unsubscribe
   }, [queryClient])
 
   const placeOrderMutation = useMutation({

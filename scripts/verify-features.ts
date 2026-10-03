@@ -195,17 +195,17 @@ results.push({
 // 8. INDEXEDDB STORES (Issue #42)
 // ════════════════════════════════════════════
 results.push({
-  test: 'INDEXEDDB_STORE_COUNT = 1 (2→1 po R170; ne 22)',
-  passed: INDEXEDDB_STORE_COUNT === 1,
+  test: 'INDEXEDDB_STORE_COUNT = 2 (R224 #157 k2: + syncMetadata; ne 22)',
+  passed: INDEXEDDB_STORE_COUNT === 2,
   evidence: `count=${INDEXEDDB_STORE_COUNT}`,
 })
 results.push({
-  test: 'INDEXEDDB_STORES = ["pendingOrders"] (FURS store izbrisan R170, R166-F7)',
-  passed: JSON.stringify([...INDEXEDDB_STORES]) === '["pendingOrders"]',
+  test: 'INDEXEDDB_STORES = ["pendingOrders","syncMetadata"] (FURS store ostaja izbrisan R170, R166-F7)',
+  passed: JSON.stringify([...INDEXEDDB_STORES]) === '["pendingOrders","syncMetadata"]',
 })
 results.push({
-  test: 'INDEXEDDB_STORE_COUNT = 1',
-  passed: INDEXEDDB_STORE_COUNT === 1,
+  test: 'INDEXEDDB_STORE_COUNT = 2',
+  passed: INDEXEDDB_STORE_COUNT === 2,
 })
 
 // ════════════════════════════════════════════

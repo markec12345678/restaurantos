@@ -11,7 +11,8 @@
 // napačnemu "cookie auth" komentarju (requireAuth je Bearer-only).
 // Pravi FURS retry mehanizem = server-side outbox
 // (src/lib/outbox/processors/furs.ts, retry + dead_letter).
-// Dejansko število trgovin: 1 (pendingOrders).
+// Dejansko število trgovin: R170–R222 = 1 (pendingOrders); R224 (#157
+// korak 2) = 2 — + 'syncMetadata' (KV zapisnik synca, keyPath 'key').
 // ============================================
 
 import { describe, it, expect } from 'vitest'
@@ -22,21 +23,22 @@ import { INDEXEDDB_STORES, INDEXEDDB_STORE_COUNT } from '@/lib/offline-orders'
 const swSrc = readFileSync(path.join(process.cwd(), 'public', 'sw.js'), 'utf-8')
 
 describe('Issue #42 — IndexedDB store count documentation', () => {
-  it('INDEXEDDB_STORE_COUNT je 1 (ne 22; 2→1 po R170)', () => {
-    expect(INDEXEDDB_STORE_COUNT).toBe(1)
+  it('INDEXEDDB_STORE_COUNT je 2 (ne 22; 2→1 po R170, 1→2 po R224 #157 k2)', () => {
+    expect(INDEXEDDB_STORE_COUNT).toBe(2)
     expect(INDEXEDDB_STORE_COUNT).not.toBe(22)
   })
 
-  it('INDEXEDDB_STORES vsebuje pendingOrders', () => {
+  it('INDEXEDDB_STORES vsebuje pendingOrders + syncMetadata (R224 #157 k2)', () => {
     expect(INDEXEDDB_STORES).toContain('pendingOrders')
+    expect(INDEXEDDB_STORES).toContain('syncMetadata')
   })
 
   it('INDEXEDDB_STORES NE vsebuje pendingReceipts (FURS store izbrisan R170)', () => {
     expect(INDEXEDDB_STORES).not.toContain('pendingReceipts')
   })
 
-  it('INDEXEDDB_STORES ima točno 1 vnos', () => {
-    expect(INDEXEDDB_STORES).toHaveLength(1)
+  it('INDEXEDDB_STORES ima točno 2 vnosa', () => {
+    expect(INDEXEDDB_STORES).toHaveLength(2)
   })
 })
 
