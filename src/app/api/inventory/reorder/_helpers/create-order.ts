@@ -4,6 +4,7 @@
 
 import { db } from '@/lib/db'
 import { toNum, round2, multiply } from '@/lib/decimal'
+import { acquireInvStockLocks } from '@/lib/stock-deduction/locks'
 import type { ReorderOrderResult } from './types'
 
 export async function createReorderOrder(
@@ -41,6 +42,18 @@ export async function createReorderOrder(
   const validItems = items.filter(item => invItemMap.has(item.inventoryItemId))
 
   await db.$transaction(async (tx) => {
+    // R220 (#152 korak 2, G6): advisory ključavnice za VSE validne artikle —
+    // PRED prvo mutacijo (R182 vesolj: sort+dedup+null-skip v helperju =
+    // deadlock-free ordering; entitetni kontekst — scoped pre-check findMany
+    // — je bil izveden pred tx). Avto-prevzem je increment (kvantiteta vedno
+    // varna, negativna zaloga nemogoča), ampak BREZ ključavnice se revizijski
+    // vrstici dveh sočasnih prevzemov ISTEGA artikla lahko prepleteta (update
+    // A → update B → create B → create A: previousQty → newQty NI več
+    // brezvsnežna veriga §21); ključavnica serializira update+create per
+    // artikel (6. pre-R182 pisec mimo kanona → kanon pariteta; prej 5. po
+    // R218 G3).
+    await acquireInvStockLocks(tx, validItems.map((item) => item.inventoryItemId))
+
     for (const item of validItems) {
       const invItem = invItemMap.get(item.inventoryItemId)!
 

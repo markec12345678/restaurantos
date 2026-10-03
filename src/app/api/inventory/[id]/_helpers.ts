@@ -1,10 +1,19 @@
 // Pomožne funkcije za inventory/[id] API — DELETE handler
 
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { toNum, round2, multiply } from '@/lib/decimal'
-import { handleApiError } from '@/lib/api-utils'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { Prisma } from '@prisma/client'
+import { acquireInvStockLocks } from '@/lib/stock-deduction/locks'
+
+// R220 (#152 korak 2, G5): pariteta s kanonom (stock-mutations TX_OPTS /
+// R214 G4) — redka operacija, Serializable brez P2034 retry-noise tveganja
+// na vroči poti.
+const TX_OPTS = {
+  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+}
 
 // FIX: Soft-delete namesto hard-delete — ohrani transakcijsko zgodovino
 export async function handleDeleteInventory(req: Request, id: string) {
@@ -58,24 +67,54 @@ export async function handleDeleteInventory(req: Request, id: string) {
 
     // Namesto hard-delete, nastavi količino na 0 in označi kot nedoseno
     // Tako ohranimo transakcijsko zgodovino za FURS/audit
-    await db.$transaction(async (tx) => {
-      const previousQty = item.quantity
-      await tx.inventoryItem.update({
-        where: { id },
+    //
+    // R220 (#152 korak 2, G5): kanon pariteta — trije manjkajoči kanonski
+    // elementi (isti vzorec kot R214 G4 batch adjust / R106 stock-mutations):
+    //   1. advisory ključavnica acquireInvStockLocks (R182 vesolj — sort+dedup
+    //      v helperju) PRED prvo mutacijo; entitetni kontekst (scoped read +
+    //      menu/recipe varovalki) je bil izveden že pred tx → ključavnica je
+    //      list lock grafa, deadlock nemogoč; prej je bil DELETE 6. zalogovni
+    //      pisec MIMO kanona (sočasna prodaja ∥ brisanje se NI serializirala
+    //      → preplet StockTx revizijskih vrstic, §21 kontinuiteta prelomljena),
+    //   2. tx-fresh scoped re-read — prej je stale pre-tx `item.quantity`
+    //      določal previousQty na write-off StockTx (sočasna prodaja med
+    //      readom in tx = previousQty ne odraža dejanske vrednosti ob
+    //      mutaciji — izgubljen odstotek v ledgerju),
+    //   3. CAS updateMany (where quantity == tx-fresh vrednost) — zapiše 0
+    //      SAMO če se zaloga ni premaknila; 0 vrstic → strukturirani 409
+    //      (nikoli tiho prepisovanje; obrambna globina poleg ključavnice,
+    //      pariteta s P3 atomarnim vzorcem).
+    const deleteResult = await db.$transaction(async (tx) => {
+      // (1) ključavnica PRED re-readom in prvo mutacijo (R182 vesolj)
+      await acquireInvStockLocks(tx, [id])
+      // (2) tx-fresh scoped re-read (prej stale pre-tx read)
+      const fresh = await tx.inventoryItem.findFirst({
+        where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
+      })
+      if (!fresh) {
+        throw { error: 'Artikel zaloge ni najden (sočasna sprememba)', status: 404 }
+      }
+      const previousQty = toNum(fresh.quantity)
+      // (3) CAS: zapiši 0 samo nad tx-fresh vrednostjo (pariteta s P3)
+      const updated = await tx.inventoryItem.updateMany({
+        where: { id, quantity: fresh.quantity },
         data: {
           quantity: 0,
           menuItemId: null, // Odstrani povezavo z menijem
         },
       })
+      if (updated.count === 0) {
+        throw { error: 'Brisanje zaloge je v obdelavi (sočasen dostop) — poskusite znova', status: 409 }
+      }
       await tx.stockTransaction.create({
         data: {
           inventoryItemId: id,
           type: 'write-off',
-          quantity: -toNum(previousQty),
-          previousQty: toNum(previousQty),
+          quantity: -previousQty,
+          previousQty,
           newQty: 0,
-          costPerUnit: item.costPerUnit,
-          totalCost: round2(multiply(previousQty, item.costPerUnit)),
+          costPerUnit: fresh.costPerUnit,
+          totalCost: round2(multiply(fresh.quantity, fresh.costPerUnit)),
           reason: 'Izbris artikla iz zaloge',
           note: 'Artikel odstranjen iz sistema',
           employeeName: authResult.session?.employeeId || '',
@@ -83,10 +122,41 @@ export async function handleDeleteInventory(req: Request, id: string) {
           employeeId: authResult.session?.employeeId ?? null,
         },
       })
+      return { previousQty, itemName: fresh.name }
+    }, TX_OPTS)
+
+    // R220 (G5): revizija brisanja — EN vnos INVENTORY_DELETE per uspešen
+    // soft-delete (isti details shape kot INVENTORY_ADJUST :92-105;
+    // tx-fresh vrednosti; never-throws, PCI hash veriga prek createAuditLog).
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'INVENTORY_DELETE',
+      entityType: 'InventoryItem',
+      entityId: id,
+      details: {
+        type: 'write-off',
+        quantity: -deleteResult.previousQty,
+        previousQty: deleteResult.previousQty,
+        newQty: 0,
+        reason: 'Izbris artikla iz zaloge',
+        itemName: deleteResult.itemName,
+      },
     })
 
     return NextResponse.json({ success: true, message: 'Artikel označen kot izbrisan, transakcijska zgodovina ohranjena' })
   } catch (error: unknown) {
-    return handleApiError(error, 'DELETE /api/inventory/[id]', 'Napaka pri brisanju zaloge')
+    // R220 (G5): error kontrakt pariteta s stockRaceErrorResponse (route.ts
+    // PUT/PATCH) — P2002/P2034 race-pathi → 409 (nikoli 500); strukturirani
+    // { error, status } throw-i iz tx telesa (404/409) → pravi statusi.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Brisanje zaloge je v obdelavi (sočasen dostop) — poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'DELETE /api/inventory/[id]', 'Napaka pri brisanju zaloge')
   }
 }

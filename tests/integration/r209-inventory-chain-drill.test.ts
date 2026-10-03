@@ -125,6 +125,9 @@ import { POST as stocktakeApprovePost } from '@/app/api/stocktakes/[id]/approve/
 import { POST as poReceive } from '@/app/api/purchase-orders/[id]/receive/route'
 import { PUT as adjustBatchPut } from '@/app/api/inventory/adjust/route'
 import { POST as qrOrderPost } from '@/app/api/public/order/route'
+// R220 G5+G6: DELETE artikel (kanon pariteta) + reorder auto-prevzem (ključavnice)
+import { DELETE as inventoryDelete } from '@/app/api/inventory/[id]/route'
+import { POST as reorderPost } from '@/app/api/inventory/reorder/route'
 import { GET as reportsEodGet } from '@/app/api/reports/eod/route'
 import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { fetchEodData } from '@/app/api/reports/eod/_helpers/data-fetch'
@@ -156,6 +159,8 @@ const IDS = {
   invG3: `${RUN_ID}-inv-g3`, // R218 G3: QR odvod (ključavnice + FEFO + orderId)
   menuItemQr: `${RUN_ID}-mi-qr`, // R218 G3: QR menu artikel
   table: `${RUN_ID}-table`, // R218 G3: QR miza (tableId pot)
+  invG5: `${RUN_ID}-inv-g5`, // R220 G5: DELETE artikel (ključavnica + tx-fresh + CAS + audit)
+  invG6: `${RUN_ID}-inv-g6`, // R220 G6: reorder auto-prevzem (ključavnice)
 }
 
 const IDEM_ORDER_PIZZA = `${RUN_ID}-order-pizza`
@@ -440,14 +445,14 @@ beforeAll(async () => {
 afterAll(async () => {
   // Čiščenje po FK redu — ORKENTIRANO na RUN_ID entitete (IT tečejo zaporedno,
   // fileParallelism: false, a delijo isto PGlite bazo — nikoli deleteMany brez scope-a).
-  const itemIds = [IDS.invFlour, IDS.invJuice, IDS.invOil, IDS.invWaste, IDS.invBatch, IDS.invG2, IDS.invG3]
+  const itemIds = [IDS.invFlour, IDS.invJuice, IDS.invOil, IDS.invWaste, IDS.invBatch, IDS.invG2, IDS.invG3, IDS.invG5, IDS.invG6]
 
   await db.auditLog
     .deleteMany({
       where: {
         OR: [
           { locationId: IDS.location },
-          { entityId: { in: [IDS.po, IDS.po2, `${IDS.po}-i-oil`, wasteRecordId, stocktakeId] } },
+          { entityId: { in: [IDS.po, IDS.po2, `${IDS.po}-i-oil`, wasteRecordId, stocktakeId, IDS.invG5, IDS.invG6] } },
         ],
       },
     })
@@ -1637,5 +1642,132 @@ describe('R218 G3: QR odvodni tok — ključavnice + FEFO po serijah + orderId (
     expect(g3OrderId).toBeTruthy() // 1. test je zabeležil svoj order
     const orphan = await db.order.findFirst({ where: { locationId: G3_LOC, customerName: 'G3 preobseg' } })
     expect(orphan).toBeNull()
+  })
+})
+
+// ---------- R220 G5+G6: DELETE artikel + reorder auto-prevzem na kanon pariteti ----------
+// Vrzeli (INVENTORY-CHAIN.md §5): G5 — DELETE /api/inventory/[id] je bil 6.
+// zalogovni pisec mimo R182 kanona (brez ključavnice, stale pre-tx previousQty,
+// brez audita); G6 — reorder create-order 7. pisec mimo kanona (increment je
+// kvantiteto varen, ampak revizijski vrstici dveh sočasnih prevzemov ISTEGA
+// artikla sta se lahko prepletli — §21 veriga prelomljena).
+// FIX: kanon pariteta (R214 G4 / R218 G3 vzorec) — acquireInvStockLocks PRED
+// mutacijo; G5 dodatno tx-fresh scoped re-read + CAS updateMany (equality nad
+// tx-fresh vrednostjo; 0 vrstic → 409) + INVENTORY_DELETE audit + 409 kontrakt.
+describe('R220 G5+G6: DELETE artikel (ključavnica + tx-fresh + CAS + audit) + reorder auto-prevzem (ključavnice)', () => {
+  beforeAll(async () => {
+    // Artikla na GLAVNI lokaciji (authRef.locationId = IDS.location — scope
+    // resolver realen, items morajo biti v session scope-u)
+    await db.inventoryItem.create({
+      data: {
+        id: IDS.invG5,
+        name: 'R220 G5 Artikel',
+        unit: 'kg',
+        quantity: 5,
+        minQuantity: 1,
+        costPerUnit: 3.0,
+        servingsPerUnit: 1,
+        locationId: IDS.location,
+      },
+    })
+    await db.inventoryItem.create({
+      data: {
+        id: IDS.invG6,
+        name: 'R220 G6 Artikel',
+        unit: 'kos',
+        quantity: 2,
+        minQuantity: 5,
+        costPerUnit: 4.0,
+        servingsPerUnit: 1,
+        locationId: IDS.location,
+      },
+    })
+  })
+
+  it('G5: DELETE artikel → 200, soft-delete (zaloga 5→0, vrstica ohranjena) + write-off StockTx z tx-fresh previousQty + INVENTORY_DELETE audit', async () => {
+    const res = await inventoryDelete(req(`/api/inventory/${IDS.invG5}`, 'DELETE'), withParams(IDS.invG5))
+    expect(res.status).toBe(200)
+
+    // soft-delete: vrstica ostane (StockTx Restrict ohranja ledger), zaloga 0
+    const item = await db.inventoryItem.findUnique({ where: { id: IDS.invG5 } })
+    expect(item).not.toBeNull()
+    expect(Number(item!.quantity)).toBe(0)
+    expect(item!.menuItemId).toBeNull()
+
+    // write-off StockTx: previousQty = tx-fresh vrednost 5 (ne stale), newQty 0,
+    // totalCost 5 × 3.00 = 15.00 (§21: brezvsnežna veriga 5→0)
+    const stockTx = await db.stockTransaction.findFirst({
+      where: { inventoryItemId: IDS.invG5, type: 'write-off' },
+      orderBy: { createdAt: 'desc' },
+    })
+    expect(stockTx).not.toBeNull()
+    expect(Number(stockTx!.quantity)).toBe(-5)
+    expect(Number(stockTx!.previousQty)).toBe(5)
+    expect(Number(stockTx!.newQty)).toBe(0)
+    expect(Number(stockTx!.totalCost)).toBe(15)
+    expect(stockTx!.reason).toBe('Izbris artikla iz zaloge')
+    expect(stockTx!.employeeId).toBe(IDS.employee)
+
+    // audit: INVENTORY_DELETE per uspešen soft-delete — tx-fresh details,
+    // PCI hash veriga (previousHash + chainHash)
+    const audit = await db.auditLog.findFirst({
+      where: { action: 'INVENTORY_DELETE', entityId: IDS.invG5 },
+      orderBy: { timestamp: 'desc' },
+    })
+    expect(audit).not.toBeNull()
+    expect(audit!.entityType).toBe('InventoryItem')
+    const details = JSON.parse(audit!.details) as { previousQty: number; newQty: number; quantity: number; itemName: string; reason: string }
+    expect(Number(details.previousQty)).toBe(5)
+    expect(Number(details.newQty)).toBe(0)
+    expect(Number(details.quantity)).toBe(-5)
+    expect(details.itemName).toBe('R220 G5 Artikel')
+    expect(details.reason).toBe('Izbris artikla iz zaloge')
+    expect(audit!.previousHash).toBeTruthy()
+    expect(audit!.chainHash).toBeTruthy()
+  })
+
+  it('G6: POST /api/inventory/reorder → auto-prevzem +3 pod ključavnico, procurement StockTx 2→5 (§21 veriga) + scope fail-closed za tuj artikel', async () => {
+    const txCountBefore = await db.stockTransaction.count({ where: { inventoryItemId: IDS.invG6 } })
+    expect(txCountBefore).toBe(0)
+
+    const res = await reorderPost(post('/api/inventory/reorder', {
+      items: [
+        { inventoryItemId: IDS.invG6, quantity: 3, costPerUnit: 4.0 },
+        { inventoryItemId: `${RUN_ID}-inv-foreign`, quantity: 1, costPerUnit: 9 },
+      ],
+      employeeName: 'R220 farmacevt',
+    }))
+    // mešan vnos: 1 valid + 1 izven scope-a → 201 s results + errors (fail-closed
+    // R85-4c: tuj artikel "ni najden" — brez razkritja obstoja)
+    expect(res.status).toBe(201)
+    const body = await asJson(res)
+    expect(body.createdOrders).toBe(1)
+    const items = body.items as Array<{ inventoryItemId: string; quantity: number; totalCost: number }>
+    expect(items).toHaveLength(1)
+    expect(items[0].inventoryItemId).toBe(IDS.invG6)
+    expect(items[0].quantity).toBe(3)
+    expect(Number(items[0].totalCost)).toBe(12) // 3 × 4.00
+    const errors = body.errors as Array<{ inventoryItemId: string; error: string }>
+    expect(errors).toEqual([{ inventoryItemId: `${RUN_ID}-inv-foreign`, error: 'Artikel ni najden' }])
+
+    // zaloga: 2 + 3 = 5 (increment pod ključavnico) + lastRestocked
+    const item = await db.inventoryItem.findUnique({ where: { id: IDS.invG6 } })
+    expect(Number(item!.quantity)).toBe(5)
+    expect(item!.lastRestocked).not.toBeNull()
+
+    // procurement StockTx: previousQty 2 (dejanska vrednost pred incrementom),
+    // newQty 5, totalCost 12.00 — brezvsnežna veriga
+    const stockTx = await db.stockTransaction.findFirst({
+      where: { inventoryItemId: IDS.invG6, type: 'procurement' },
+      orderBy: { createdAt: 'desc' },
+    })
+    expect(stockTx).not.toBeNull()
+    expect(Number(stockTx!.quantity)).toBe(3)
+    expect(Number(stockTx!.previousQty)).toBe(2)
+    expect(Number(stockTx!.newQty)).toBe(5)
+    expect(Number(stockTx!.totalCost)).toBe(12)
+    expect(stockTx!.reason).toContain('Samodejno naročilo')
+    expect(stockTx!.reason).toContain('R220 farmacevt')
+    expect(stockTx!.employeeId).toBe(IDS.employee)
   })
 })
