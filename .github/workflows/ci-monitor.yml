@@ -71,7 +71,7 @@ jobs:
       - name: Ob neuspehu — ustvari ali posodobi issue "🚨 CI failure na main"
         if: github.event.workflow_run.conclusion == 'failure'
         # Privzeti GITHUB_TOKEN (github.token) — brez secrets inputa
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const wr = context.payload.workflow_run;
@@ -187,7 +187,7 @@ jobs:
       - name: Ob uspehu — zapri issue "🚨 CI failure na main" (okrevanje)
         if: github.event.workflow_run.conclusion == 'success'
         # Privzeti GITHUB_TOKEN (github.token) — brez secrets inputa
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const wr = context.payload.workflow_run;
