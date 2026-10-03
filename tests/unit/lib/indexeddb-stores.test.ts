@@ -61,7 +61,10 @@ describe('R170 (R166-F7) — FURS SW sync veriga izbrisana', () => {
   it('orders Background Sync veja ostane živa (sync-pending-orders + offline-order-sync)', () => {
     expect(swSrc).toContain("'sync-pending-orders'")
     expect(swSrc).toContain("'offline-order-sync'")
-    expect(swSrc).toContain('syncPendingOrders()')
+    // R222 (#157 korak 1): SW = sprožilec (triggerClientOrderSync →
+    // TRIGGER_ORDER_SYNC), page = izvajalec (syncAllOfflineOps z authFetch)
+    expect(swSrc).toContain('triggerClientOrderSync()')
+    expect(swSrc).not.toContain('function syncPendingOrders')
   })
 
   it('živi FURS retry = server-side outbox processor', () => {

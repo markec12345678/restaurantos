@@ -39,8 +39,9 @@
 // R170 (R166-F7): Aplikacija ima TOČNO 1 IndexedDB trgovino — pendingOrders
 // (ta modul; pred R170 še 'pendingReceipts' FURS vrsta v offline-furs — izbrisana
 // kot mrtva veriga). Stara verzija README je trdila "22 trgovin" — napačno.
-export const INDEXEDDB_STORES = ['pendingOrders'] as const
-export const INDEXEDDB_STORE_COUNT = INDEXEDDB_STORES.length // = 1 (od R170; prej 2)
+// R222 (#157 korak 1): imena/verzija/store iz canonical kontrakta (db-contract.ts) —
+// enoten vir resnice za page IN sw.js (pariteto varuje r222 drift-gate).
+export { INDEXEDDB_STORES, INDEXEDDB_STORE_COUNT } from './db-contract'
 
 import {
   normalizeStatus,
@@ -84,9 +85,16 @@ export {
   type DeviceSyncResultRow,
 } from './cancel-ops'
 
-const DB_NAME = 'restaurantos-offline-queue'
-const DB_VERSION = 1
-const STORE_NAME = 'pendingOrders'
+// R222 (#157 korak 1): canonical IndexedDB kontrakt — EDINO ime baze/store-a
+// (dual-DB defekt #49: SW je odpiral 'restaurantos-offline' v2, page pa
+// 'restaurantos-offline-queue' v1 — Background Sync end-to-end mrtva pot).
+import {
+  OFFLINE_DB_NAME as DB_NAME,
+  OFFLINE_DB_VERSION as DB_VERSION,
+  OFFLINE_STORE_NAME as STORE_NAME,
+  LEGACY_SW_DB_NAME,
+} from './db-contract'
+
 const DEVICE_ID_STORAGE_KEY = 'restaurantos-device-id'
 
 /** R128: tip offline operacije — stari vnosi (brez polja) = 'order.create'. */
@@ -203,6 +211,149 @@ export function getDeviceId(): string {
   }
 }
 
+let legacyMigrationDone = false
+
+/**
+ * R222 (#157 korak 1, KNOWN_ISSUES #49): migracija LEGACY SW baze
+ * ('restaurantos-offline' v2 — dual-DB defekt) v canonical queue.
+ *
+ *  - odpre legacy bazo BREZ verzije (ne ustvari store-ov); če ne obstaja,
+ *    pospravi morebitno novo-ustvarjeno prazno bazo in vrne 0 (fast path).
+ *  - operacionalni vnosi (PENDING / RETRY / zastarel PROCESSING > 5 min) se
+ *    SKOPIRAJO v canonical bazo prek putOp (verificiran zapis) in ŠELE
+ *    POTEM izbrišejo iz legacy — "delete and hope" je prepovedano (#157 plan).
+ *  - terminalni/history vnosi (SYNCED/FAILED/CONFLICT/MANUAL_REVIEW/EXPIRED)
+ *    se NE migrirajo (cold arhiv — page jih nikoli ni bral); legacy baza z
+ *    arhivom ostane, prazna pa se uniči (deleteDatabase).
+ *  - vnosi brez idempotencyKey/orderData niso varno sinhronizabilni —
+ *    ostanejo v arhivu (nikoli tiho izgubljeni).
+ *  - best-effort: enkrat na sejo, uspeh ali legacy-neobstoj zakleneta flag;
+ *    napaka ga pusti odprt (retry ob naslednjem openDB).
+ *  - IZVAJA SE SAMO v pravem brskalniškem kontekstu (navigator.serviceWorker)
+ *    — testni IndexedDB dvojniki delijo store čez imena (brez per-name
+ *    izolacije), migracija tam je no-op.
+ */
+export async function migrateLegacySwDb(): Promise<number> {
+  if (legacyMigrationDone) return 0
+  if (typeof indexedDB === 'undefined') return 0
+  // R222 kanon: migracija IZKLJUČNO v pravem brskalniškem kontekstu —
+  // per-name izolacija IndexedDB je garantirana po spec-u, testni dvojniki
+  // pa delijo store čez imena (fake open ignorira ime) — tam se NE izvaja,
+  // da ne bi poškodovala fiksnega testnega stanja. Kontekst brez Service
+  // Worker API (nesiguren kontekst) nima SW dual-DB defekta — nič za migrirat.
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return 0
+  try {
+    const legacy = await openLegacySwDb()
+    if (!legacy) { legacyMigrationDone = true; return 0 }
+    const raw = await new Promise<unknown[]>((resolve) => {
+      try {
+        const tx = legacy.transaction('pendingOrders', 'readonly')
+        const req = tx.objectStore('pendingOrders').getAll()
+        req.onsuccess = () => resolve((req.result ?? []) as unknown[])
+        req.onerror = () => resolve([])
+      } catch { resolve([]) }
+    })
+
+    const now = Date.now()
+    const PROCESSING_STALE_MS = 5 * 60 * 1000
+    let migrated = 0
+    let archived = 0
+    for (const entry of raw) {
+      const o = (entry ?? {}) as Record<string, unknown>
+      const status = String(o['status'] ?? 'PENDING').toUpperCase()
+      const operacionalen =
+        status === 'PENDING' || status === 'RETRY' ||
+        (status === 'PROCESSING' &&
+          now - Number(o['lastAttemptAt'] ?? o['createdAt'] ?? 0) >= PROCESSING_STALE_MS)
+      const id = typeof o['id'] === 'string' ? o['id'] : null
+      const idempotencyKey = typeof o['idempotencyKey'] === 'string' ? o['idempotencyKey'] : null
+      const orderData = (o['orderData'] ?? o['data']) as PendingOrder['orderData'] | undefined
+
+      if (!operacionalen || !id || !idempotencyKey || !orderData) {
+        archived++
+        continue
+      }
+
+      // Kopija v canonical (verificiran zapis) — ŠELE nato izbris iz legacy.
+      // Bearer token (order.authToken) se NAMERNO ne prenaša — #155 §26.
+      const retryCount = Number(o['retryCount'] ?? o['attempts'] ?? 0)
+      const copied: PendingOrder = {
+        id,
+        operationId: id,
+        idempotencyKey,
+        deviceId: typeof o['deviceId'] === 'string' ? (o['deviceId'] as string) : 'dev-unknown',
+        locationId: (o['locationId'] as string | null) ?? null,
+        employeeId: (o['employeeId'] as string | null) ?? null,
+        createdAt: Number(o['createdAt'] ?? Date.now()),
+        payloadVersion: Number(o['payloadVersion'] ?? PAYLOAD_VERSION),
+        retryCount,
+        status: 'PENDING',
+        lastError: null,
+        attempts: retryCount,
+        syncError: null,
+        lastAttemptAt: null,
+        orderData,
+        opType: 'order.create',
+      }
+      const okPut = await putOp(copied)
+      if (!okPut) { archived++; continue }
+      await new Promise<void>((resolve) => {
+        try {
+          const tx = legacy.transaction('pendingOrders', 'readwrite')
+          tx.objectStore('pendingOrders').delete(id)
+          tx.oncomplete = () => resolve()
+          tx.onerror = () => resolve()
+          tx.onabort = () => resolve()
+        } catch { resolve() }
+      })
+      migrated++
+    }
+    legacy.close()
+    if (archived === 0) {
+      // Ni arhiva — legacy bazo uniči (definitivno pospravljena).
+      await new Promise<void>((resolve) => {
+        try {
+          const req = indexedDB.deleteDatabase(LEGACY_SW_DB_NAME)
+          req.onsuccess = () => resolve()
+          req.onerror = () => resolve()
+          req.onblocked = () => resolve()
+        } catch { resolve() }
+      })
+    }
+    legacyMigrationDone = true
+    return migrated
+  } catch {
+    // Best-effort — flag ostane odprt, retry ob naslednjem openDB klicu.
+    return 0
+  }
+}
+
+/** Odpri LEGACY SW bazo BREZ verzije (ne ustvari store-ov / ne dvigne v2). */
+function openLegacySwDb(): Promise<IDBDatabase | null> {
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.open(LEGACY_SW_DB_NAME)
+      request.onupgradeneeded = () => { /* prazno — NE ustvarjaj store-ov */ }
+      request.onsuccess = () => {
+        const db = request.result
+        if (!db.objectStoreNames.contains('pendingOrders')) {
+          // Ne obstaja (ali prazna brez store-a) — pospravi morebitno
+          // novo-ustvarjeno prazno bazo in vrni null (fast path).
+          db.close()
+          try { indexedDB.deleteDatabase(LEGACY_SW_DB_NAME) } catch { /* best-effort */ }
+          resolve(null)
+          return
+        }
+        resolve(db)
+      }
+      request.onerror = () => resolve(null)
+      request.onblocked = () => resolve(null)
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
 /** Odpri IndexedDB za offline order queue */
 function openDB(): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
@@ -222,6 +373,8 @@ function openDB(): Promise<IDBDatabase | null> {
       }
       request.onsuccess = () => {
         dbInstance = request.result
+        // R222: enkrat-na-sejo best-effort migracija legacy SW baze (#49)
+        void migrateLegacySwDb().catch(() => 0)
         resolve(dbInstance)
       }
       request.onerror = () => resolve(null)

@@ -131,10 +131,10 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 - **TODO:** Za DB-level zaščito (race condition) dodaj PostgreSQL EXCLUDE constraint z `tstzrange` (zahteva `btree_gist` extension).
 
 ### #49 — Dual-IndexedDB: SW Background Sync bere DRUGO bazo kot page (R203 odkritje)
-- **Status:** 🔄 OPEN (MEDIUM, funkcionalna odpornost — NI varnostna ranljivost; fix = issue #157)
-- **Problem:** Page offline queue piše v `restaurantos-offline-queue` v1 (`src/lib/offline-orders/index.ts` — `DB_NAME`), Service Worker Background Sync pa odpira POVSEM DRUGO bazo `restaurantos-offline` v2 z lastnim `authToken` indeksom (`public/sw.js` — `openOfflineDB`). SW tako NIKOLI ne vidi page-enqueued naročil — `syncPendingOrders` pobere 0 vnosov; Background Sync je end-to-end mrtva pot. SW pošilja tudi na zastarel `POST /api/orders` namesto kanoničnega `/api/device-sync` in brau bearer token iz IndexedDB (`order.authToken`, varnostna ploskev #155 §26/#157 §14).
-- **Vpliv:** Razcepljeno stanje page↔SW; blokirana osnova za #150 E2E scenarije (sync po restartu/v ozadju). NI izgube podatkov — dejanski sync motor (page polling 5s + online handler) deluje, strežniški ledger + idempotencyKey so fail-closed.
-- **Popravek (načrtovano #157):** En canonical IndexedDB kontrakt (ime/verzija/store-i/migracijska veriga + metadata store), uradna razveljavitev konvencije "public/sw.js se NE ureja" (`cancel-ops.ts`), page↔SW koordinacija (BroadcastChannel/Web Locks), migracija obstoječih nesinhroniziranih vnosov ("delete and hope" prepovedano).
+- **Status:** ✅ FIXED (R222 — #157 korak 1; širši #157 epik "LOCAL-FIRST POS STORAGE" ostaja)
+- **Problem (prej):** Page offline queue piše v `restaurantos-offline-queue` v1 (`src/lib/offline-orders/index.ts` — `DB_NAME`), Service Worker Background Sync pa odpira POVSEM DRUGO bazo `restaurantos-offline` v2 z lastnim `authToken` indeksom (`public/sw.js` — `openOfflineDB`). SW tako NIKOLI ne vidi page-enqueued naročil — `syncPendingOrders` pobere 0 vnosov; Background Sync je end-to-end mrtva pot. SW pošilja tudi na zastarel `POST /api/orders` namesto kanoničnega `/api/device-sync` in brau bearer token iz IndexedDB (`order.authToken`, varnostna ploskev #155 §26/#157 §14).
+- **Popravek (R222, #157 korak 1):** NOV `src/lib/offline-orders/db-contract.ts` — canonical IndexedDB kontrakt (OFFLINE_DB_NAME/VERSION/STORE_NAME + LEGACY_SW_DB_NAME/VERSION + SYNC_TRIGGER_MESSAGE_TYPE; index.ts importira, sw.js zrcali — pariteto varuje drift-gate `tests/unit/lib/r222-sw-canonical-db.test.ts`). SW kanon: **SW = SPROŽILEC, page = IZVAJALEC** — auth kontekst (requireAuth Bearer-only + x-csrf-token cookie) obstaja izključno v page kontekstu, zato SW NIKOLI ne odpira IndexedDB in NIKOLI ne drži tokena: 'sync' event pošlje `TRIGGER_ORDER_SYNC` (notifyClient), page handler (`useOrderPanelMutations`) izvede `syncAllOfflineOps` z authFetch (order.create → /api/orders + ledger headerji, order.cancel → batch /api/device-sync) in zapiše SYNCED/serverAck v canonical bazo. Mrtva SW HTTP/dual-DB mehanika izbrisana (openOfflineDB, syncPendingOrders-SW, bearer-iz-IDB, deletePendingOrder-na-uspeh — brisanje ostaja izključno page retention cleanup). Migracija legacy SW baze: page-side `migrateLegacySwDb` (best-effort enkrat na sejo; operacionalni vnosi SKOPIRANI prek verificiranega putOp ŠELE nato izbrisani iz legacy — "delete and hope" prepovedano; terminalni vnosi = cold arhiv, prazna baza se uniči; bearer token se namerno ne prenaša — #155 §26).
+- **Ostaja (širši #157 epik):** metadata store + migracijska veriga v1→v2, BroadcastChannel/Web Locks koordinacija, E2E scenariji #150 (sync po restartu/v ozadju).
 - **Odkritje:** R203 analiza issue #150/#157 (spot-verifikacija proti kodi: `src/lib/offline-orders/index.ts:87` vs `public/sw.js:561,420-430`); do R203 ni bilo v tem registru (doc-truth luknja, zaprta s tem vnosom).
 
 ---
@@ -160,9 +160,9 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 | #33 JSON-as-String | LOW | ✅ FIXED (R150 jedro: 25 polj Json @ 0022 + R197 drift-gate; 6 ostankov utemeljenih) |
 | #36 Shift/StaffShift overlap | LOW | 🔄 OPEN (arhitektura) |
 | #48 Neon locationId drift (11 tabel) | MEDIUM | ✅ FIXED (R195 migration package; aplikacija = uporabniški korak) |
-| #49 Dual-IndexedDB (SW bere drugo bazo) | MEDIUM | 🔄 OPEN (R203 odkritje; fix = issue #157) |
+| #49 Dual-IndexedDB (SW bere drugo bazo) | MEDIUM | ✅ FIXED (R222 — #157 korak 1: SW=sprožilec/page=izvajalec kanon + db-contract + migrateLegacySwDb) |
 
-**Skupaj:** 0 HIGH odprtih, 1 MEDIUM odprt (#49 dual-IndexedDB, funkcionalna odpornost — fix = issue #157), 1 LOW odprt (#36 arhitektura; #33 zaprt R197).
+**Skupaj:** 0 HIGH odprtih, 0 MEDIUM odprtih (#49 zaprt R222 — #157 korak 1), 1 LOW odprt (#36 arhitektura; #33 zaprt R197).
 
 ---
 

@@ -71,6 +71,17 @@ export function useOrderPanelMutations() {
     }
     window.addEventListener('online', handleOnline)
 
+    // R222 (#157 korak 1): SW Background Sync = SPROŽILEC, page = IZVAJALEC.
+    // SW 'sync' event (reconnect) pošlje TRIGGER_ORDER_SYNC — page izvede
+    // popoln sync z authFetch (Bearer + CSRF; SW nikoli ne drži tokena).
+    const handleSwTrigger = (event: MessageEvent) => {
+      const data = event.data as { type?: string } | null
+      if (data?.type === 'TRIGGER_ORDER_SYNC') {
+        logger.info('OfflineQueue', 'Background Sync trigger — syncing pending offline ops')
+        handleOnline()
+      }
+    }
+
     // P1-15: poslušaj Service Worker sinhronizacijska obvestila.
     // Prej jih NIHČE ni poslušal — SYNC_CONFLICT/SYNC_EXPIRED/SYNC_FAILED
     // so šla v prazno (uporabnik ni nikoli izvedel za izgubljena naročila).
@@ -96,6 +107,7 @@ export function useOrderPanelMutations() {
       }
     }
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwTrigger)
       navigator.serviceWorker.addEventListener('message', handleSwMessage)
     }
 
@@ -103,6 +115,7 @@ export function useOrderPanelMutations() {
       stopPolling()
       window.removeEventListener('online', handleOnline)
       if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwTrigger)
         navigator.serviceWorker.removeEventListener('message', handleSwMessage)
       }
     }
